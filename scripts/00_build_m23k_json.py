@@ -101,12 +101,11 @@ def main() -> int:
 
     train, val, test = split(records, args.seed, args.train_ratio, args.val_ratio, args.test_ratio)
 
-    # Write outputs (atomic)
     out_dir.mkdir(parents=True, exist_ok=True)
-    write_jsonl(out_dir / "m23k.jsonl", records)
-    write_jsonl(out_dir / "train.jsonl", train)
-    write_jsonl(out_dir / "val.jsonl", val)
-    write_jsonl(out_dir / "test.jsonl", test)
+    # write_jsonl(out_dir / "m23k.jsonl", records)
+    write_jsonl(out_dir / "m23k_train.jsonl", train)
+    write_jsonl(out_dir / "m23k_val.jsonl", val)
+    write_jsonl(out_dir / "m23k_test.jsonl", test)
 
     # Minimal stdout (no raw text)
     print(f"[m23k] records={len(records)} train={len(train)} val={len(val)} test={len(test)}")
@@ -115,4 +114,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()
