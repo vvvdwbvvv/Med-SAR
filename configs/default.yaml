@@ -1,0 +1,30 @@
+seed: 42
+device: auto
+
+paths:
+  data_dir: data
+  outputs_dir: outputs
+
+logging:
+  use_wandb: true
+  project: med-sar
+  run_name: dev
+
+data:
+  m23k_jsonl: data/processed/m23k.jsonl
+  mimic_notes_jsonl: data/processed/mimic_notes.jsonl
+
+models:
+  doctor:
+    name_or_path: meta-llama/Meta-Llama-3-8B-Instruct
+  generator:
+    name_or_path: meta-llama/Meta-Llama-3-8B-Instruct
+  critic:
+    name_or_path: distilbert-base-uncased
+  teacher:
+    name_or_path: sentence-transformers/all-MiniLM-L6-v2
+
+train:
+  batch_size: 4
+  lr: 1.0e-5
+  max_steps: 1000
