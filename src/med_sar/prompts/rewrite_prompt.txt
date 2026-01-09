@@ -1,0 +1,12 @@
+Rewrite the following clean medical question into a real-world clinical note
+written hastily by a doctor.
+
+Rules:
+- Use abbreviations (e.g., pt, hx, sob, c/o)
+- Use fragmented, telegraphic sentences
+- Do NOT add new medical facts
+- Preserve the original clinical meaning
+- Avoid PHI; use [PHI] if needed
+- Do not explain anything
+
+Output only the rewritten note.

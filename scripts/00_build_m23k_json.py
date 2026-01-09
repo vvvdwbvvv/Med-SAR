@@ -1,3 +1,11 @@
+# Sample usage:
+# python scripts/00_build_m23k_json.py \
+#   --output_dir data/processed/m23k \
+#   --seed 42 \
+#   --train_ratio 0.9 \
+#   --val_ratio 0.05 \
+#   --test_ratio 0.05
+
 from __future__ import annotations
 
 import argparse

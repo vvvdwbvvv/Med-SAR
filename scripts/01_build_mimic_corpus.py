@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""
-Outputs:
-- data/processed/mimic_corpus/corpus.jsonl
-
-Example:
-  python scripts/01_build_mimic_corpus.py \
-    --input data/raw/NOTEEVENTS.csv \
-    --output_dir data/processed/mimic_corpus
-    --text_col TEXT
-"""
+# Sample usage:
+# python scripts/01_build_mimic_corpus.py \
+#   --input data/raw/NOTEEVENTS.csv \
+#   --output_dir data/processed \
+#   --text_col TEXT \
+#   --chunk_chars 1200 \
+#   --chunk_overlap 200 \
+#   --min_note_chars 40 \
+#   --min_chunk_chars 200
 
 from __future__ import annotations
 
