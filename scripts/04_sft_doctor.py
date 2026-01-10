@@ -9,6 +9,7 @@
 from __future__ import annotations
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from datasets import Dataset
@@ -20,12 +21,8 @@ from transformers import (
     DataCollatorForLanguageModeling,
 )
 
-
-def load_jsonl(p: Path):
-    rows = []
-    for line in p.open():
-        rows.append(json.loads(line))
-    return rows
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.io import read_jsonl
 
 
 def main():
@@ -39,8 +36,8 @@ def main():
     ap.add_argument("--max_len", type=int, default=1024)
     args = ap.parse_args()
 
-    tr = load_jsonl(Path(args.train))
-    dv = load_jsonl(Path(args.dev))
+    tr = read_jsonl(Path(args.train))
+    dv = read_jsonl(Path(args.dev))
 
     def format_ex(r):
         q = r["question"]
