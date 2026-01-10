@@ -14,8 +14,8 @@ preprocess:
 	--seed 42 \
 	--train_ratio 0.9 \
 	--val_ratio 0.05 \
-	--test_ratio 0.05
-    && \
+	--test_ratio 0.05 \
+    ;
 	$(UV) run scripts/01_build_mimic_corpus.py \
 	--input data/raw/NOTEEVENTS.csv \
 	--output_dir data/processed \

@@ -8,14 +8,16 @@
 
 from __future__ import annotations
 import argparse
-import json
 import sys
 from pathlib import Path
-
+from peft import LoraConfig
+import torch
+import bitsandbytes as bnb  # noqa: F401
 from datasets import Dataset
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
+    BitsAndBytesConfig,
     TrainingArguments,
     Trainer,
     DataCollatorForLanguageModeling,
@@ -57,7 +59,32 @@ def main():
     ds_train = ds_train.map(tok_fn, batched=True, remove_columns=["text"])
     ds_dev = ds_dev.map(tok_fn, batched=True, remove_columns=["text"])
 
-    model = AutoModelForCausalLM.from_pretrained(args.base)
+    model = AutoModelForCausalLM.from_pretrained(
+        args.base,
+        attn_implementation="sdpa",
+        torch_dtype=torch.float16,
+        use_cache=True,
+        quantization_config=BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+        ),
+    )
+
+    peft_config = LoraConfig(
+        r=32,
+        lora_alpha=32,
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
+    )
 
     collator = DataCollatorForLanguageModeling(tok, mlm=False)
 
@@ -67,7 +94,7 @@ def main():
         gradient_accumulation_steps=8,
         learning_rate=2e-5,
         num_train_epochs=1,
-        evaluation_strategy="steps",
+        eval_strategy="steps",
         eval_steps=200,
         save_steps=200,
         logging_steps=50,
