@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import csv
 import hashlib
-import json
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Union
 
@@ -77,7 +75,9 @@ def iter_mimic_notes(
         for row in records:
             if resolved is None:
                 if text_col and text_col not in row:
-                    raise ValueError(f"text_col '{text_col}' not found. Available columns: {list(row.keys())}")
+                    raise ValueError(
+                        f"text_col '{text_col}' not found. Available columns: {list(row.keys())}"
+                    )
                 resolved = resolve_columns(
                     list(row.keys()),
                     text_col=text_col,
@@ -96,13 +96,45 @@ def iter_mimic_notes(
                 continue
 
             yield {
-                "note_id": (str(row.get(resolved["note_id"])).strip() if resolved["note_id"] and row.get(resolved["note_id"]) is not None else None),
-                "subject_id": (str(row.get(resolved["subject_id"])).strip() if resolved["subject_id"] and row.get(resolved["subject_id"]) is not None else None),
-                "hadm_id": (str(row.get(resolved["hadm_id"])).strip() if resolved["hadm_id"] and row.get(resolved["hadm_id"]) is not None else None),
-                "stay_id": (str(row.get(resolved["stay_id"])).strip() if resolved["stay_id"] and row.get(resolved["stay_id"]) is not None else None),
-                "charttime": (str(row.get(resolved["charttime"])).strip() if resolved["charttime"] and row.get(resolved["charttime"]) is not None else None),
-                "category": (str(row.get(resolved["category"])).strip() if resolved["category"] and row.get(resolved["category"]) is not None else None),
-                "description": (str(row.get(resolved["description"])).strip() if resolved["description"] and row.get(resolved["description"]) is not None else None),
+                "note_id": (
+                    str(row.get(resolved["note_id"])).strip()
+                    if resolved["note_id"] and row.get(resolved["note_id"]) is not None
+                    else None
+                ),
+                "subject_id": (
+                    str(row.get(resolved["subject_id"])).strip()
+                    if resolved["subject_id"]
+                    and row.get(resolved["subject_id"]) is not None
+                    else None
+                ),
+                "hadm_id": (
+                    str(row.get(resolved["hadm_id"])).strip()
+                    if resolved["hadm_id"] and row.get(resolved["hadm_id"]) is not None
+                    else None
+                ),
+                "stay_id": (
+                    str(row.get(resolved["stay_id"])).strip()
+                    if resolved["stay_id"] and row.get(resolved["stay_id"]) is not None
+                    else None
+                ),
+                "charttime": (
+                    str(row.get(resolved["charttime"])).strip()
+                    if resolved["charttime"]
+                    and row.get(resolved["charttime"]) is not None
+                    else None
+                ),
+                "category": (
+                    str(row.get(resolved["category"])).strip()
+                    if resolved["category"]
+                    and row.get(resolved["category"]) is not None
+                    else None
+                ),
+                "description": (
+                    str(row.get(resolved["description"])).strip()
+                    if resolved["description"]
+                    and row.get(resolved["description"]) is not None
+                    else None
+                ),
                 "text": text,
             }
 

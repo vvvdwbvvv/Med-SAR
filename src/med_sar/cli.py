@@ -3,11 +3,16 @@ from med_sar.training.train_critic import run_train_critic
 from med_sar.training.sft_doctor import run_sft_doctor
 from med_sar.training.loop import run_loop
 
+
 def main():
     p = argparse.ArgumentParser("med-sar")
     p.add_argument("--config", type=str, default="configs/default.yaml")
-    p.add_argument("--task", type=str, required=True,
-                   choices=["train_critic", "sft_doctor", "loop"])
+    p.add_argument(
+        "--task",
+        type=str,
+        required=True,
+        choices=["train_critic", "sft_doctor", "loop"],
+    )
     args = p.parse_args()
 
     if args.task == "train_critic":

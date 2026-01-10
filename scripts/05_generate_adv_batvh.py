@@ -7,7 +7,8 @@
 #   --seed 0
 
 from __future__ import annotations
-import argparse, json
+import argparse
+import json
 from pathlib import Path
 from typing import List
 
@@ -17,8 +18,10 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from med_sar.corruptions import CorruptConfig, mixed
 from med_sar.semantic_checks import semantic_report
 
+
 def load_jsonl(p: Path):
     return [json.loads(l) for l in p.open()]
+
 
 @torch.inference_mode()
 def critic_scores(texts: List[str], ckpt: str) -> List[float]:
@@ -26,12 +29,15 @@ def critic_scores(texts: List[str], ckpt: str) -> List[float]:
     model = AutoModelForSequenceClassification.from_pretrained(ckpt).cuda().eval()
     out = []
     for i in range(0, len(texts), 32):
-        batch = texts[i:i+32]
-        x = tok(batch, return_tensors="pt", truncation=True, max_length=256, padding=True).to("cuda")
+        batch = texts[i : i + 32]
+        x = tok(
+            batch, return_tensors="pt", truncation=True, max_length=256, padding=True
+        ).to("cuda")
         logits = model(**x).logits
         prob = torch.softmax(logits, dim=-1)[:, 1]  # label=1 is target-like
         out.extend(prob.detach().cpu().tolist())
     return out
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -46,7 +52,7 @@ def main():
 
     adv_texts = []
     for i, r in enumerate(rows):
-        adv = mixed(r["question"], CorruptConfig(level=args.level, seed=args.seed+i))
+        adv = mixed(r["question"], CorruptConfig(level=args.level, seed=args.seed + i))
         r["x_adv"] = adv
         adv_texts.append(adv)
 
@@ -67,6 +73,7 @@ def main():
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
     print(f"wrote adv batch to {args.out}")
+
 
 if __name__ == "__main__":
     main()

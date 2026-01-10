@@ -7,10 +7,13 @@
 #   --seed 0
 
 from __future__ import annotations
-import argparse, json, random
+import argparse
+import json
+import random
 from pathlib import Path
 
-from med_sar.corruptions import CorruptConfig, mixed  
+from med_sar.corruptions import CorruptConfig, mixed
+
 
 def load_jsonl(p: Path):
     rows = []
@@ -18,6 +21,7 @@ def load_jsonl(p: Path):
         for line in f:
             rows.append(json.loads(line))
     return rows
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -44,6 +48,7 @@ def main():
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
     print(f"wrote {len(out_rows)} to {args.out}")
+
 
 if __name__ == "__main__":
     main()

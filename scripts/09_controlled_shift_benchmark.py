@@ -12,7 +12,14 @@ import json
 from pathlib import Path
 from typing import Dict, List
 
-from med_sar.corruptions import CorruptConfig, abbrev_jargon, telegraphic, shuffle_sentences, ellipsis_drop, mixed
+from med_sar.corruptions import (
+    CorruptConfig,
+    abbrev_jargon,
+    telegraphic,
+    shuffle_sentences,
+    ellipsis_drop,
+    mixed,
+)
 
 SHIFT_FUNCS = {
     "abbrev": abbrev_jargon,
@@ -22,6 +29,7 @@ SHIFT_FUNCS = {
     "mixed": mixed,
 }
 
+
 def load_jsonl(p: Path) -> List[Dict]:
     rows = []
     with p.open() as f:
@@ -29,11 +37,13 @@ def load_jsonl(p: Path) -> List[Dict]:
             rows.append(json.loads(line))
     return rows
 
+
 def save_jsonl(p: Path, rows: List[Dict]) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("w") as f:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
 
 def build_shifted(rows: List[Dict], shift: str, level: float, seed: int) -> List[Dict]:
     fn = SHIFT_FUNCS[shift]
@@ -49,12 +59,23 @@ def build_shifted(rows: List[Dict], shift: str, level: float, seed: int) -> List
         out.append(rr)
     return out
 
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--input_test", type=str, required=True, help="source test jsonl with {question, answer,...}")
+    ap.add_argument(
+        "--input_test",
+        type=str,
+        required=True,
+        help="source test jsonl with {question, answer,...}",
+    )
     ap.add_argument("--out_dir", type=str, required=True)
-    ap.add_argument("--levels", type=float, nargs="+", default=[0.1,0.2,0.3,0.4])
-    ap.add_argument("--shifts", type=str, nargs="+", default=["abbrev","tele","shuffle","drop","mixed"])
+    ap.add_argument("--levels", type=float, nargs="+", default=[0.1, 0.2, 0.3, 0.4])
+    ap.add_argument(
+        "--shifts",
+        type=str,
+        nargs="+",
+        default=["abbrev", "tele", "shuffle", "drop", "mixed"],
+    )
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
@@ -67,6 +88,7 @@ def main():
             save_jsonl(out_dir / f"{shift}_lvl{level:.1f}.jsonl", shifted)
 
     print(f"Saved shifted testsets to: {out_dir}")
+
 
 if __name__ == "__main__":
     main()

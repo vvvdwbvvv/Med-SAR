@@ -4,6 +4,7 @@ from datasets import load_dataset
 
 from utils.text import normalize_text
 
+
 @dataclass(frozen=True)
 class NormalizeConfig:
     split: str = "train"
@@ -12,7 +13,8 @@ class NormalizeConfig:
     place_text_in_context: bool = True
     # If True, require at least one of answer_string/distilled_answer_string.
     require_answer_text: bool = True
-    
+
+
 def load_m23k_raw():
     ds = load_dataset("UCSC-VLAA/m23k-tokenized")
     split = "train"
@@ -21,7 +23,7 @@ def load_m23k_raw():
 
     ex = ds[split][0]
     print(ex)
-    
+
     return ds[split]
 
 
@@ -109,7 +111,3 @@ def normalize_m23k_record(
         },
     }
     return canonical
-
-
-
-

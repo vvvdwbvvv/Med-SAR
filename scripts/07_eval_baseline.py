@@ -5,22 +5,31 @@
 #   --models sft=models/doctor_sft medsar=models/doctor_round_5
 
 from __future__ import annotations
-import argparse, csv, json
+import argparse
+import csv
+import json
 from pathlib import Path
+
 
 def load_jsonl(p: Path):
     return [json.loads(l) for l in p.open()]
+
 
 def eval_model(rows, ckpt, input_field="question_shifted", label_field="answer_string"):
     # TODO: replace with your real evaluation
     # return {"acc":..., "f1":..., "ece":...}
     return {"acc": 0.0, "f1": 0.0, "ece": 0.0}
 
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--shift_dir", type=str, required=True)  # outputs from scripts/10_controlled_shift_benchmark.py
+    ap.add_argument(
+        "--shift_dir", type=str, required=True
+    )  # outputs from scripts/10_controlled_shift_benchmark.py
     ap.add_argument("--out_csv", type=str, required=True)
-    ap.add_argument("--models", type=str, nargs="+", required=True, help="name=ckpt ...")
+    ap.add_argument(
+        "--models", type=str, nargs="+", required=True, help="name=ckpt ..."
+    )
     args = ap.parse_args()
 
     shift_dir = Path(args.shift_dir)
@@ -33,7 +42,9 @@ def main():
 
     Path(args.out_csv).parent.mkdir(parents=True, exist_ok=True)
     with Path(args.out_csv).open("w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=["model","shift","level","acc","f1","ece"])
+        w = csv.DictWriter(
+            f, fieldnames=["model", "shift", "level", "acc", "f1", "ece"]
+        )
         w.writeheader()
 
         for fp in files:
@@ -45,6 +56,7 @@ def main():
                 w.writerow({"model": name, "shift": shift, "level": level, **m})
 
     print(f"wrote {args.out_csv}")
+
 
 if __name__ == "__main__":
     main()

@@ -6,7 +6,7 @@ import json
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from torch.utils.data import Dataset
 
@@ -18,7 +18,9 @@ from med_sar.data.augment import (
 )
 
 
-def _read_jsonl(path: str | Path, max_items: Optional[int] = None) -> List[Dict[str, Any]]:
+def _read_jsonl(
+    path: str | Path, max_items: Optional[int] = None
+) -> List[Dict[str, Any]]:
     path = Path(path)
     data: List[Dict[str, Any]] = []
     with path.open("r", encoding="utf-8") as f:
@@ -87,7 +89,9 @@ class CriticDataset(Dataset):
         super().__init__()
         self.cfg = cfg
 
-        self.mimic: List[Dict[str, Any]] = _read_jsonl(mimic_chunks_path, max_items=max_mimic_items)
+        self.mimic: List[Dict[str, Any]] = _read_jsonl(
+            mimic_chunks_path, max_items=max_mimic_items
+        )
         if not self.mimic:
             raise ValueError(f"No records loaded from {mimic_chunks_path}")
 
@@ -96,7 +100,11 @@ class CriticDataset(Dataset):
             self.gneg = _read_jsonl(gneg_path, max_items=max_gneg_items)
 
         # validate probabilities
-        if not (0.0 <= cfg.p_real <= 1.0 and 0.0 <= cfg.p_corrupt <= 1.0 and 0.0 <= cfg.p_gneg <= 1.0):
+        if not (
+            0.0 <= cfg.p_real <= 1.0
+            and 0.0 <= cfg.p_corrupt <= 1.0
+            and 0.0 <= cfg.p_gneg <= 1.0
+        ):
             raise ValueError("Probabilities must be in [0,1].")
         s = cfg.p_real + cfg.p_corrupt + cfg.p_gneg
         if abs(s - 1.0) > 1e-6:

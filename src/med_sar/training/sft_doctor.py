@@ -1,6 +1,7 @@
 import yaml
 from med_sar.utils.seed import set_seed
 
+
 def run_sft_doctor(config_path: str):
     cfg = yaml.safe_load(open(config_path))
     set_seed(cfg["seed"])

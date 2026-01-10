@@ -47,6 +47,7 @@ def build_corpus(
 
     note_count = 0
     chunk_count = 0
+
     def iter_rows() -> Iterable[Dict[str, Any]]:
         nonlocal note_count, chunk_count
         seen = 0
@@ -63,7 +64,10 @@ def build_corpus(
             min_chars=min_note_chars,
         )
         note_total = max_notes if max_notes is not None and max_notes > 0 else None
-        with tqdm(note_iter, unit="notes", desc="notes", total=note_total) as note_bar, tqdm(unit="chunks", desc="chunks") as chunk_bar:
+        with (
+            tqdm(note_iter, unit="notes", desc="notes", total=note_total) as note_bar,
+            tqdm(unit="chunks", desc="chunks") as chunk_bar,
+        ):
             for note in note_bar:
                 seen += 1
                 if max_notes is not None and seen > max_notes:
@@ -111,9 +115,11 @@ def build_corpus(
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--input", action="append", required=True, help="Path(s) to notes files.")
+    ap.add_argument(
+        "--input", action="append", required=True, help="Path(s) to notes files."
+    )
     ap.add_argument("--output_dir", type=str, default="data/processed")
-    ap.add_argument("--text_col", type=str, default='TEXT')
+    ap.add_argument("--text_col", type=str, default="TEXT")
     ap.add_argument("--note_id_col", type=str, default=None)
     ap.add_argument("--subject_id_col", type=str, default=None)
     ap.add_argument("--hadm_id_col", type=str, default=None)

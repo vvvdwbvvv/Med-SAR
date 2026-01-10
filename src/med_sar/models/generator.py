@@ -1,5 +1,6 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
+
 # prompt-based rewrite
 class Generator:
     def __init__(self, name_or_path: str):

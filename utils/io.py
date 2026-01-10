@@ -4,6 +4,7 @@ import csv
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, Sequence, Union
 
+
 def write_jsonl(path: Union[str, Path], records: Iterable[Dict[str, Any]]) -> int:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -16,6 +17,7 @@ def write_jsonl(path: Union[str, Path], records: Iterable[Dict[str, Any]]) -> in
     os.replace(tmp, path)
     return n
 
+
 def write_text(path: Union[str, Path], text: str) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -23,6 +25,7 @@ def write_text(path: Union[str, Path], text: str) -> None:
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(text)
     os.replace(tmp, path)
+
 
 def read_jsonl(path: Union[str, Path]) -> Iterator[Dict[str, Any]]:
     with open(path, "r", encoding="utf-8") as f:
@@ -32,6 +35,7 @@ def read_jsonl(path: Union[str, Path]) -> Iterator[Dict[str, Any]]:
                 continue
             obj = json.loads(line)
             yield obj
+
 
 def read_json(path: Union[str, Path]) -> Iterator[Dict[str, Any]]:
     with open(path, "r", encoding="utf-8") as f:
@@ -43,6 +47,7 @@ def read_json(path: Union[str, Path]) -> Iterator[Dict[str, Any]]:
     for i, row in enumerate(obj):
         yield row
 
+
 def read_csv(path: Path) -> Iterator[Dict[str, Any]]:
     dialect = "excel-tab" if path.suffix.lower() == ".tsv" else "excel"
     with path.open("r", encoding="utf-8", newline="") as f:
@@ -50,7 +55,10 @@ def read_csv(path: Path) -> Iterator[Dict[str, Any]]:
         for row in reader:
             yield row
 
-def iter_upstream_records(paths: Union[str, Path, Sequence[Union[str, Path]]]) -> Iterator[Dict[str, Any]]:
+
+def iter_upstream_records(
+    paths: Union[str, Path, Sequence[Union[str, Path]]],
+) -> Iterator[Dict[str, Any]]:
     """
     Iterate upstream records from one or multiple files.
     Supports .jsonl or .json.

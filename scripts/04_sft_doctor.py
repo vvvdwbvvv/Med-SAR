@@ -7,11 +7,19 @@
 #   --max_len 1024
 
 from __future__ import annotations
-import argparse, json
+import argparse
+import json
 from pathlib import Path
 
 from datasets import Dataset
-from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer, DataCollatorForLanguageModeling
+from transformers import (
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    TrainingArguments,
+    Trainer,
+    DataCollatorForLanguageModeling,
+)
+
 
 def load_jsonl(p: Path):
     rows = []
@@ -19,11 +27,14 @@ def load_jsonl(p: Path):
         rows.append(json.loads(line))
     return rows
 
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--train", type=str, required=True)
     ap.add_argument("--dev", type=str, required=True)
-    ap.add_argument("--base", type=str, required=True)  # e.g. meta-llama/Llama-3.1-8B-Instruct (local)
+    ap.add_argument(
+        "--base", type=str, required=True
+    )  # e.g. meta-llama/Llama-3.1-8B-Instruct (local)
     ap.add_argument("--out", type=str, required=True)
     ap.add_argument("--max_len", type=int, default=1024)
     args = ap.parse_args()
@@ -37,15 +48,17 @@ def main():
         return f"Question:\n{q}\n\nAnswer:\n{a}"
 
     ds_train = Dataset.from_dict({"text": [format_ex(r) for r in tr]})
-    ds_dev   = Dataset.from_dict({"text": [format_ex(r) for r in dv]})
+    ds_dev = Dataset.from_dict({"text": [format_ex(r) for r in dv]})
 
     tok = AutoTokenizer.from_pretrained(args.base, use_fast=True)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
 
-    def tok_fn(ex): return tok(ex["text"], truncation=True, max_length=args.max_len)
+    def tok_fn(ex):
+        return tok(ex["text"], truncation=True, max_length=args.max_len)
+
     ds_train = ds_train.map(tok_fn, batched=True, remove_columns=["text"])
-    ds_dev   = ds_dev.map(tok_fn, batched=True, remove_columns=["text"])
+    ds_dev = ds_dev.map(tok_fn, batched=True, remove_columns=["text"])
 
     model = AutoModelForCausalLM.from_pretrained(args.base)
 
@@ -65,11 +78,18 @@ def main():
         report_to="none",
     )
 
-    trainer = Trainer(model=model, args=targs, train_dataset=ds_train, eval_dataset=ds_dev, data_collator=collator)
+    trainer = Trainer(
+        model=model,
+        args=targs,
+        train_dataset=ds_train,
+        eval_dataset=ds_dev,
+        data_collator=collator,
+    )
     trainer.train()
     trainer.save_model(args.out)
     tok.save_pretrained(args.out)
     print(f"doctor saved to {args.out}")
+
 
 if __name__ == "__main__":
     main()

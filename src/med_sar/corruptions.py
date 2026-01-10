@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 _SENT_SPLIT = re.compile(r"(?<=[\.\?!])\s+")
 
@@ -20,20 +20,51 @@ DEFAULT_ABBREV = {
 }
 
 STOPWORDS = {
-    "the","a","an","and","or","but","if","then","because","as","of","to","in","on","for","with","without",
-    "is","are","was","were","be","been","being","this","that","these","those"
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "but",
+    "if",
+    "then",
+    "because",
+    "as",
+    "of",
+    "to",
+    "in",
+    "on",
+    "for",
+    "with",
+    "without",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "this",
+    "that",
+    "these",
+    "those",
 }
+
 
 @dataclass
 class CorruptConfig:
     level: float  # 0.0~0.5 typically
     seed: int = 0
 
+
 def _split_sentences(text: str) -> List[str]:
     sents = _SENT_SPLIT.split(text.strip())
     return [s.strip() for s in sents if s.strip()]
 
-def abbrev_jargon(text: str, cfg: CorruptConfig, abbrev: Dict[str,str] | None = None) -> str:
+
+def abbrev_jargon(
+    text: str, cfg: CorruptConfig, abbrev: Dict[str, str] | None = None
+) -> str:
     random.seed(cfg.seed)
     abbrev = abbrev or DEFAULT_ABBREV
     out = text
@@ -43,18 +74,24 @@ def abbrev_jargon(text: str, cfg: CorruptConfig, abbrev: Dict[str,str] | None = 
             out = re.sub(rf"\b{re.escape(k)}\b", abbrev[k], out, flags=re.IGNORECASE)
     return out
 
+
 def telegraphic(text: str, cfg: CorruptConfig) -> str:
     random.seed(cfg.seed)
     tokens = re.split(r"(\W+)", text)  # keep separators
     kept = []
     for t in tokens:
-        if re.match(r"^\w+$", t) and t.lower() in STOPWORDS and random.random() < cfg.level:
+        if (
+            re.match(r"^\w+$", t)
+            and t.lower() in STOPWORDS
+            and random.random() < cfg.level
+        ):
             continue
         kept.append(t)
     # optionally shorten whitespace
     out = "".join(kept)
     out = re.sub(r"\s+", " ", out).strip()
     return out
+
 
 def shuffle_sentences(text: str, cfg: CorruptConfig) -> str:
     random.seed(cfg.seed)
@@ -72,6 +109,7 @@ def shuffle_sentences(text: str, cfg: CorruptConfig) -> str:
         sents[i] = subset[j]
     return " ".join(sents)
 
+
 def ellipsis_drop(text: str, cfg: CorruptConfig) -> str:
     random.seed(cfg.seed)
     sents = _split_sentences(text)
@@ -82,6 +120,7 @@ def ellipsis_drop(text: str, cfg: CorruptConfig) -> str:
     drop_idx = set(random.sample(range(len(sents)), k=drop_n))
     kept = [s for i, s in enumerate(sents) if i not in drop_idx]
     return " ".join(kept)
+
 
 def mixed(text: str, cfg: CorruptConfig) -> str:
     # apply multiple corruptions

@@ -9,10 +9,8 @@
 from __future__ import annotations
 
 import argparse
-import json
 import random
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 import sys
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple, Union
@@ -23,8 +21,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from utils.io import write_jsonl, iter_upstream_records
 from utils.seed import set_seed
-from utils.text import normalize_text as normalize
 from med_sar.data.m23k import normalize_m23k_record, load_m23k_raw
+
 
 @dataclass(frozen=True)
 class NormalizeConfig:
@@ -34,6 +32,7 @@ class NormalizeConfig:
     place_text_in_context: bool = True
     # If True, require at least one of answer_string/distilled_answer_string.
     require_answer_text: bool = True
+
 
 def build_m23k_jsonl(
     *,
@@ -46,6 +45,7 @@ def build_m23k_jsonl(
     cfg = NormalizeConfig(split=split)
 
     count = 0
+
     def iter_normalized() -> Iterator[Dict[str, Any]]:
         nonlocal count
         for row in iter_upstream_records(input_paths):
@@ -74,6 +74,7 @@ def build_m23k_jsonl(
 
     write_jsonl(output_jsonl, normalized_iter)
 
+
 def split(
     records: List[Dict[str, Any]],
     seed: int,
@@ -96,7 +97,12 @@ def split(
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--output_dir", type=str, default="data/processed/m23k", help="Output directory.")
+    ap.add_argument(
+        "--output_dir",
+        type=str,
+        default="data/processed/m23k",
+        help="Output directory.",
+    )
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--train_ratio", type=float, default=0.9)
     ap.add_argument("--val_ratio", type=float, default=0.05)
@@ -107,7 +113,9 @@ def main() -> int:
 
     records = list(load_m23k_raw())
 
-    train, val, test = split(records, args.seed, args.train_ratio, args.val_ratio, args.test_ratio)
+    train, val, test = split(
+        records, args.seed, args.train_ratio, args.val_ratio, args.test_ratio
+    )
 
     out_dir.mkdir(parents=True, exist_ok=True)
     # write_jsonl(out_dir / "m23k.jsonl", records)
@@ -116,7 +124,9 @@ def main() -> int:
     write_jsonl(out_dir / "m23k_test.jsonl", test)
 
     # Minimal stdout (no raw text)
-    print(f"[m23k] records={len(records)} train={len(train)} val={len(val)} test={len(test)}")
+    print(
+        f"[m23k] records={len(records)} train={len(train)} val={len(val)} test={len(test)}"
+    )
     print(f"[m23k] wrote: {out_dir}/(m23k.jsonl, train.jsonl, val.jsonl, test.jsonl)")
     return 0
 

@@ -1,5 +1,5 @@
 UV=uv
-PYTHON=python
+PYTHON=python3
 
 setup:
 	$(UV) venv
@@ -19,3 +19,12 @@ sft_doctor:
 
 loop:
 	$(UV) run med-sar --task loop --config configs/default.yaml
+
+checkstyle:
+	$(PYTHON) -m ruff check . --exclude test; ruff_check_status=$$?; \
+	$(PYTHON) -m ruff format --check . --exclude test; ruff_format_status=$$?; \
+	$(PYTHON) -m ruff check . --fix --exclude test; \
+	$(PYTHON) -m ruff format . --exclude test; \
+	if [ $$ruff_check_status -ne 0 ] || [ $$ruff_format_status -ne 0 ]; then \
+	    exit 1; \
+	fi

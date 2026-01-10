@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from med_sar.models.embeddings import Embedder, cosine_sim
 
+
 @dataclass
 class CycleConsistencyReward:
     embedder: Embedder

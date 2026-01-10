@@ -1,7 +1,7 @@
 import re
 import random
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, Tuple
 
 
 # ---------------------------
@@ -10,9 +10,7 @@ from typing import Callable, Dict, List, Tuple
 
 PHI_SPAN_RE = re.compile(r"\[\*\*.*?\*\*\]", flags=re.DOTALL)
 
-SECTION_HEADER_RE = re.compile(
-    r"^(?P<header>[A-Z][A-Z0-9 /,\-\(\)]{2,})(:)?\s*$"
-)
+SECTION_HEADER_RE = re.compile(r"^(?P<header>[A-Z][A-Z0-9 /,\-\(\)]{2,})(:)?\s*$")
 
 MULTI_NL_RE = re.compile(r"\n{3,}")
 MULTI_SPACE_RE = re.compile(r"[ \t]{2,}")
@@ -31,7 +29,9 @@ def normalize_whitespace(text: str) -> str:
     return text
 
 
-def mask_section_headers(text: str, token: str = "[SECTION]", prob: float = 1.0, rng: random.Random = None) -> str:
+def mask_section_headers(
+    text: str, token: str = "[SECTION]", prob: float = 1.0, rng: random.Random = None
+) -> str:
     rng = rng or random.Random(0)
     out_lines = []
     for ln in text.split("\n"):
@@ -56,7 +56,9 @@ def normalize_all(text: str, rng: random.Random) -> str:
 # B) Corruptions (apply to create NEGATIVES)
 # ---------------------------
 
-FOOTER_START_RE = re.compile(r"^(Dictated By:|MEDQUIST|JOB#:|JOB#|D:\s|\s*T:\s)", flags=re.IGNORECASE)
+FOOTER_START_RE = re.compile(
+    r"^(Dictated By:|MEDQUIST|JOB#:|JOB#|D:\s|\s*T:\s)", flags=re.IGNORECASE
+)
 
 
 def drop_footer_blocks(text: str) -> str:
@@ -96,7 +98,10 @@ def paragraph_shuffle(text: str, rng: random.Random, keep_first: bool = True) ->
 
 _SENT_SPLIT_RE = re.compile(r"(?<=[\.\?\!])\s+(?=[A-Z\[])")
 
-def sentence_shuffle_within_paragraphs(text: str, rng: random.Random, min_sents: int = 3) -> str:
+
+def sentence_shuffle_within_paragraphs(
+    text: str, rng: random.Random, min_sents: int = 3
+) -> str:
     paras = re.split(r"\n\s*\n", text.strip())
     new_paras = []
     for p in paras:
@@ -111,9 +116,9 @@ def sentence_shuffle_within_paragraphs(text: str, rng: random.Random, min_sents:
 
 def punctuation_overclean(text: str) -> str:
     # Simulate "too clean" generator output: remove repeated punctuation patterns, normalize colons.
-    text = re.sub(r":\s*", " ", text)            # remove colon structure
-    text = re.sub(r"\s+([,;])", r"\1", text)     # trim spaces before punctuation
-    text = re.sub(r"[,;]{2,}", ",", text)        # collapse repeated punctuation
+    text = re.sub(r":\s*", " ", text)  # remove colon structure
+    text = re.sub(r"\s+([,;])", r"\1", text)  # trim spaces before punctuation
+    text = re.sub(r"[,;]{2,}", ",", text)  # collapse repeated punctuation
     text = re.sub(r"\(\s+", "(", text)
     text = re.sub(r"\s+\)", ")", text)
     return text
@@ -125,6 +130,7 @@ ABBREV_MAP = {
     "CXR": "chest x-ray",
     "S/P": "status post",
 }
+
 
 def expand_abbreviations(text: str, rng: random.Random, prob: float = 0.5) -> str:
     # Replace a random subset of abbreviations (word-boundary aware)
@@ -139,6 +145,7 @@ def suppress_all_caps(text: str) -> str:
     def repl(m):
         w = m.group(0)
         return w.lower()
+
     return re.sub(r"\b[A-Z]{5,}\b", repl, text)
 
 
@@ -146,12 +153,14 @@ def delete_some_numbers(text: str, rng: random.Random, prob: float = 0.3) -> str
     # Remove some numeric tokens (not PHI since already masked).
     def repl(m):
         return "" if rng.random() < prob else m.group(0)
+
     return re.sub(r"\b\d+(\.\d+)?\b", repl, text)
 
 
 # ---------------------------
 # Corruption pipeline builder
 # ---------------------------
+
 
 @dataclass
 class CorruptionConfig:
@@ -174,7 +183,7 @@ def build_default_config(seed: int = 0) -> CorruptionConfig:
             "expand_abbrev": 0.6,
             "suppress_caps": 0.6,
             "delete_numbers": 0.5,
-        }
+        },
     )
 
 

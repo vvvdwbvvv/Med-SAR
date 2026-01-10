@@ -1,6 +1,6 @@
-
 # LLM wrapper stu
 from transformers import AutoTokenizer, AutoModelForCausalLM
+
 
 class Doctor:
     def __init__(self, name_or_path: str):

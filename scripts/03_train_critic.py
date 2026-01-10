@@ -10,13 +10,20 @@
 #   --seed 0
 
 from __future__ import annotations
-import argparse, random
+import argparse
+import random
 from pathlib import Path
 
 from datasets import Dataset
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer
+from transformers import (
+    AutoTokenizer,
+    AutoModelForSequenceClassification,
+    TrainingArguments,
+    Trainer,
+)
 
 from med_sar.corruptions import CorruptConfig, mixed
+
 
 def load_lines(p: Path, n: int | None = None):
     lines = [l.strip() for l in p.open() if l.strip()]
@@ -24,6 +31,7 @@ def load_lines(p: Path, n: int | None = None):
         random.shuffle(lines)
         lines = lines[:n]
     return lines
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -43,21 +51,27 @@ def main():
 
     # neg: generate from m23k questions
     import json
+
     m23k_rows = [json.loads(l) for l in Path(args.m23k_dev).open()]
     random.shuffle(m23k_rows)
-    m23k_rows = m23k_rows[:args.n_neg]
+    m23k_rows = m23k_rows[: args.n_neg]
     neg = []
     for i, r in enumerate(m23k_rows):
-        neg.append(mixed(r["question"], CorruptConfig(level=args.level, seed=args.seed+i)))
+        neg.append(
+            mixed(r["question"], CorruptConfig(level=args.level, seed=args.seed + i))
+        )
 
     texts = mimic + neg
-    labels = [1]*len(mimic) + [0]*len(neg)
+    labels = [1] * len(mimic) + [0] * len(neg)
 
     ds = Dataset.from_dict({"text": texts, "label": labels}).shuffle(seed=args.seed)
     ds = ds.train_test_split(test_size=0.05, seed=args.seed)
 
     tok = AutoTokenizer.from_pretrained(args.base, use_fast=True)
-    def tok_fn(ex): return tok(ex["text"], truncation=True, max_length=256)
+
+    def tok_fn(ex):
+        return tok(ex["text"], truncation=True, max_length=256)
+
     ds_tok = ds.map(tok_fn, batched=True)
 
     model = AutoModelForSequenceClassification.from_pretrained(args.base, num_labels=2)
@@ -76,11 +90,17 @@ def main():
         report_to="none",
     )
 
-    trainer = Trainer(model=model, args=targs, train_dataset=ds_tok["train"], eval_dataset=ds_tok["test"])
+    trainer = Trainer(
+        model=model,
+        args=targs,
+        train_dataset=ds_tok["train"],
+        eval_dataset=ds_tok["test"],
+    )
     trainer.train()
     trainer.save_model(args.out)
     tok.save_pretrained(args.out)
     print(f"critic saved to {args.out}")
+
 
 if __name__ == "__main__":
     main()
