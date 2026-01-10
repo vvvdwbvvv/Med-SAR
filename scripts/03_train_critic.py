@@ -13,31 +13,32 @@ from __future__ import annotations
 import argparse
 import random
 from pathlib import Path
+import sys
+
 
 from datasets import Dataset
 from transformers import (
     AutoTokenizer,
     AutoModelForSequenceClassification,
+    DataCollatorWithPadding,
     TrainingArguments,
     Trainer,
 )
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.io import read_jsonl
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from med_sar.corruptions import CorruptConfig, mixed
-
-
-def load_lines(p: Path, n: int | None = None):
-    lines = [l.strip() for l in p.open() if l.strip()]
-    if n:
-        random.shuffle(lines)
-        lines = lines[:n]
-    return lines
+from tqdm import tqdm
+from itertools import islice
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mimic_txt", type=str, required=True)
+    ap.add_argument("--mimic_jsonl", type=str, required=True)
     ap.add_argument("--m23k_dev", type=str, required=True)
-    ap.add_argument("--base", type=str, default="distilbert-base-uncased")
+    ap.add_argument("--base", type=str, default="distilbert/distilbert-base-uncased")
     ap.add_argument("--out", type=str, required=True)
     ap.add_argument("--n_pos", type=int, default=20000)
     ap.add_argument("--n_neg", type=int, default=20000)
@@ -47,7 +48,11 @@ def main():
 
     random.seed(args.seed)
 
-    mimic = load_lines(Path(args.mimic_txt), n=args.n_pos)
+    # Load positive examples with a progress bar (limit to n_pos)
+    mimic_iter = read_jsonl(Path(args.mimic_jsonl))
+    mimic = []
+    for r in tqdm(islice(mimic_iter, args.n_pos), total=args.n_pos, desc="pos"):
+        mimic.append(r["text"] if isinstance(r, dict) else str(r))
 
     # neg: generate from m23k questions
     import json
@@ -56,9 +61,12 @@ def main():
     random.shuffle(m23k_rows)
     m23k_rows = m23k_rows[: args.n_neg]
     neg = []
-    for i, r in enumerate(m23k_rows):
+    for i, r in enumerate(tqdm(m23k_rows, total=len(m23k_rows), desc="neg")):
         neg.append(
-            mixed(r["question"], CorruptConfig(level=args.level, seed=args.seed + i))
+            mixed(
+                r.get("question") or r["prompt"],
+                CorruptConfig(level=args.level, seed=args.seed + i),
+            )
         )
 
     texts = mimic + neg
@@ -72,9 +80,11 @@ def main():
     def tok_fn(ex):
         return tok(ex["text"], truncation=True, max_length=256)
 
-    ds_tok = ds.map(tok_fn, batched=True)
+    ds_tok = ds.map(tok_fn, batched=True, desc="tokenizing")
 
     model = AutoModelForSequenceClassification.from_pretrained(args.base, num_labels=2)
+
+    data_collator = DataCollatorWithPadding(tok)
 
     targs = TrainingArguments(
         output_dir=args.out,
@@ -82,11 +92,12 @@ def main():
         per_device_eval_batch_size=32,
         learning_rate=2e-5,
         num_train_epochs=1,
-        evaluation_strategy="steps",
+        eval_strategy="steps",
+        logging_steps=50,
         eval_steps=200,
         save_steps=200,
-        logging_steps=50,
-        fp16=True,
+        fp16=False,
+        disable_tqdm=False,
         report_to="none",
     )
 
@@ -95,6 +106,7 @@ def main():
         args=targs,
         train_dataset=ds_tok["train"],
         eval_dataset=ds_tok["test"],
+        data_collator=data_collator,
     )
     trainer.train()
     trainer.save_model(args.out)

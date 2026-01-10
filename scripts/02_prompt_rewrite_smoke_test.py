@@ -8,9 +8,14 @@
 
 from __future__ import annotations
 import argparse
+import ast
 import json
 import random
 from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from med_sar.corruptions import CorruptConfig, mixed
 
@@ -38,9 +43,13 @@ def main():
 
     out_rows = []
     for i, r in enumerate(sample):
-        clean = r["question"]
-        adv = mixed(clean, CorruptConfig(level=args.level, seed=args.seed + i))
-        out_rows.append({"clean": clean, "adv": adv})
+        metadata = ast.literal_eval(r["metadata"])
+        clean_question = (
+            metadata.get("question") or r.get("question") or r.get("prompt")
+        )
+
+        adv = mixed(clean_question, CorruptConfig(level=args.level, seed=args.seed + i))
+        out_rows.append({"clean": clean_question, "adv": adv})
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     with Path(args.out).open("w") as f:
