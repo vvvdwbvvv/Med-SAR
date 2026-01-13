@@ -39,6 +39,7 @@ def main():
     )  # e.g. meta-llama/Llama-3.1-8B-Instruct (local)
     ap.add_argument("--out", type=str, required=True)
     ap.add_argument("--max_len", type=int, default=1024)
+    ap.add_argument("--wandb_run_name", type=str, default=None)
     args = ap.parse_args()
 
     tr = load_jsonl(Path(args.train))
@@ -98,16 +99,17 @@ def main():
         per_device_train_batch_size=1,
         gradient_accumulation_steps=8,
         learning_rate=2e-5,
-        num_train_epochs=30,
+        num_train_epochs=3,
         eval_strategy="steps",
-        max_steps=3000,
+        steps_per_epoch = 1000,
         eval_steps=30,
         save_steps=30,
         logging_steps=30,
         use_liger_kernel=True,
         fp16=True,
         gradient_checkpointing=True,
-        report_to="none",
+        report_to="wandb",
+        run_name=args.wandb_run_name,
         gradient_checkpointing_kwargs={"use_reentrant": False},
     )
 
