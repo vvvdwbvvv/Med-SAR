@@ -11,8 +11,7 @@ import argparse
 import torch
 import json
 from pathlib import Path
-import bitsandbytes as bnb
-from peft import LoraConfig, get_peft_model # Added get_peft_model
+from peft import LoraConfig, get_peft_model
 from datasets import Dataset
 from transformers import (
     AutoTokenizer,
@@ -48,7 +47,7 @@ def main():
     def format_ex(r):
         q = r.get("question") or r.get("prompt") or ""
         a = r.get("answer_string") or r.get("answer") or ""
-        return f"Question:\n{q}\n\nAnswer:\n{a}" # Doubly escaped newlines for correct parsing
+        return f"Question:\n{q}\n\nAnswer:\n{a}"  # Doubly escaped newlines for correct parsing
 
     ds_train = Dataset.from_dict({"text": [format_ex(r) for r in tr]})
     ds_dev = Dataset.from_dict({"text": [format_ex(r) for r in dv]})
@@ -77,15 +76,15 @@ def main():
     )
 
     peft_config = LoraConfig(
-        r=16, 
+        r=16,
         lora_alpha=32,
         target_modules=[
             "q_proj",
             "v_proj",
-        ], 
-        lora_dropout=0.05, 
-        bias="none",      
-        task_type="CAUSAL_LM", 
+        ],
+        lora_dropout=0.05,
+        bias="none",
+        task_type="CAUSAL_LM",
     )
 
     # Wrap the model with LoRA adapters
@@ -127,4 +126,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
