@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # Sample usage:
 # PYTHONPATH=src python -m med_sar.eval.baselines \
+#   --backend openai \
 #   --eval_dataset zou-lab/BioMed-R1-Eval \
 #   --eval_benchmark medqa \
 #   --port 8001 \
@@ -11,18 +12,23 @@ from __future__ import annotations
 #   --use_chat_template \
 #   --strict_prompt \
 #   --reasoning
+#
+# Local Transformers (no server):
+# PYTHONPATH=src python -m med_sar.eval.baselines \
+#   --backend transformers \
+#   --model models/doctor_sft \
+#   --eval_dataset zou-lab/BioMed-R1-Eval \
+#   --eval_benchmark medqa
 
 import argparse
 import json
 import os
-from typing import Any, Dict, List, Optional, Sequence, Tuple
-
-import openai
+from pathlib import Path
+from typing import Any, Dict, List
 from datasets import load_dataset
-from jinja2 import Template
 from tqdm import tqdm
-from transformers import AutoTokenizer
 
+from med_sar.eval.runners import GenerateConfig, OpenAICompatRunner, TransformersRunner
 from med_sar.eval.scorer import get_results
 
 
@@ -67,62 +73,6 @@ def format_options(options: Any) -> str:
     return str(options)
 
 
-def trim_prompt(prompt: str, tokenizer: AutoTokenizer, max_tokens: int) -> str:
-    input_ids = tokenizer.encode(prompt, add_special_tokens=False)
-    if len(input_ids) <= max_tokens:
-        return prompt
-    input_ids = input_ids[:max_tokens]
-    return tokenizer.decode(input_ids)
-
-
-def call_model(
-    client: Any,
-    prompts: Sequence[str],
-    *,
-    model: str,
-    max_new_tokens: int,
-    temperature: float,
-    tokenizer: Optional[AutoTokenizer],
-    template: Optional[Template],
-    max_input_tokens: int,
-    print_example: bool = False,
-) -> Tuple[List[str], List[str]]:
-    if print_example and prompts:
-        print("Example:")
-        print(prompts[0])
-    if template is not None:
-        prompts = [
-            template.render(
-                messages=[{"role": "user", "content": prompt}],
-                bos_token=tokenizer.bos_token if tokenizer else "",
-                add_generation_prompt=True,
-            )
-            for prompt in prompts
-        ]
-    if max_input_tokens > 0 and tokenizer is not None:
-        prompts = [
-            trim_prompt(prompt, tokenizer, max_input_tokens) for prompt in prompts
-        ]
-
-    response = client.completions.create(
-        model=model,
-        prompt=prompts,
-        temperature=temperature,
-        top_p=0.9,
-        max_tokens=max_new_tokens,
-    )
-    raw_preds = [choice.text for choice in response.choices]
-    postprocessed_preds = [postprocess_output(pred) for pred in raw_preds]
-    return postprocessed_preds, raw_preds
-
-
-def get_client(port: int):
-    base_url = f"http://127.0.0.1:{port}/v1"
-    if hasattr(openai, "Client"):
-        return openai.Client(base_url=base_url, api_key="EMPTY")
-    return openai.OpenAI(base_url=base_url, api_key="EMPTY")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--eval_dataset", type=str, required=True)
@@ -132,35 +82,50 @@ def main() -> None:
     parser.add_argument("--use_chat_template", action="store_true")
     parser.add_argument("--strict_prompt", action="store_true")
     parser.add_argument("--task", type=str, default="api")
-    parser.add_argument("--port", type=int, default=30000)
+    parser.add_argument(
+        "--backend",
+        type=str,
+        default="openai",
+        choices=["openai", "transformers"],
+        help="Generation backend: openai=OpenAI-compatible server, transformers=local HF generate().",
+    )
+    parser.add_argument("--port", type=int, default=30000, help="Only used for --backend openai.")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="OpenAI model id (openai backend) or path/model id (transformers backend).",
+    )
+    parser.add_argument(
+        "--base_model",
+        type=str,
+        default=None,
+        help="Only used for --backend transformers when --model is a LoRA adapter; defaults from adapter_config.json.",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="Only used for --backend transformers (e.g., cuda, mps, cpu).",
+    )
     parser.add_argument("--batch_size", type=int, default=200)
     parser.add_argument("--reasoning", action="store_true")
     parser.add_argument("--temperature", type=float, default=0.2)
-    parser.add_argument("--model", type=str, default=None)
     args = parser.parse_args()
 
-    print(f"Using local API server at port {args.port}")
-    client = get_client(args.port)
-    model = args.model
-    if model is None:
-        models = client.models.list().data
-        if not models:
-            raise RuntimeError("No models available from the local API; pass --model.")
-        model = models[0].id
-    print(f"Using model {model}")
-
-    tokenizer = None
-    template = None
-    if args.use_chat_template or args.max_tokens > 0:
-        tokenizer = AutoTokenizer.from_pretrained(
-            model, trust_remote_code=True, padding_side="left"
+    if args.backend == "openai":
+        print(f"Using OpenAI-compatible API server at port {args.port}")
+        runner = OpenAICompatRunner(port=args.port, model=args.model)
+        model_name = runner.model.split("/")[-1]
+        print(f"Using model {runner.model}")
+    else:
+        if args.model is None:
+            raise SystemExit("--model is required for --backend transformers (path to checkpoint).")
+        runner = TransformersRunner(
+            model_path=args.model, base_model=args.base_model, device=args.device
         )
-    if args.use_chat_template:
-        if not tokenizer or not tokenizer.chat_template:
-            raise RuntimeError(
-                "Tokenizer chat_template is required with --use_chat_template."
-            )
-        template = Template(tokenizer.chat_template)
+        model_name = Path(args.model).name if os.path.exists(args.model) else args.model.split("/")[-1]
+        print(f"Using local Transformers model from {args.model} on device={runner.device}")
 
     input_data = load_file(args.eval_dataset, args.eval_benchmark)
 
@@ -205,16 +170,17 @@ def main() -> None:
             item["input_str"] = query_prompt.format_map(item)
 
         processed_batch = [item["input_str"] for item in batch]
-        preds, _ = call_model(
-            client,
+        if idx == 0 and processed_batch:
+            print("Example:")
+            print(processed_batch[0])
+        preds, _ = runner.generate(
             processed_batch,
-            model=model,
-            max_new_tokens=args.max_new_tokens,
-            temperature=args.temperature,
-            tokenizer=tokenizer,
-            template=template,
-            max_input_tokens=args.max_tokens,
-            print_example=(idx == 0),
+            cfg=GenerateConfig(
+                max_new_tokens=args.max_new_tokens,
+                temperature=args.temperature,
+                max_input_tokens=args.max_tokens,
+                use_chat_template=args.use_chat_template,
+            ),
         )
 
         for j, item in enumerate(batch):
@@ -224,7 +190,6 @@ def main() -> None:
             item["output"] = pred
             final_results.append(item)
 
-    model_name = model.split("/")[-1]
     if args.reasoning:
         task_folder = f"./results/{model_name}/{args.eval_benchmark}/reasoning"
     else:

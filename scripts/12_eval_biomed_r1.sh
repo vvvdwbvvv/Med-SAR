@@ -51,3 +51,6 @@ for mode in "${modes[@]}"; do
     eval "$cmd"
   done
 done
+
+
+# PYTHONPATH=src python -m med_sar.eval.baselines --backend transformers --model models/doctor_sft --eval_dataset zou-lab/BioMed-R1-Eval --eval_benchmark medqa
