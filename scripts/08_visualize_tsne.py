@@ -21,14 +21,14 @@ from sentence_transformers import SentenceTransformer
 
 
 def load_jsonl_text(p: Path, field: str, n: int, seed: int):
-    rows = [json.loads(l) for l in p.open()]
+    rows = [json.loads(line) for line in p.open()]
     random.seed(seed)
     rows = random.sample(rows, k=min(n, len(rows)))
     return [r[field] for r in rows]
 
 
 def load_txt(p: Path, n: int, seed: int):
-    lines = [l.strip() for l in p.open() if l.strip()]
+    lines = [line.strip() for line in p.open() if line.strip()]
     random.seed(seed)
     return random.sample(lines, k=min(n, len(lines)))
 

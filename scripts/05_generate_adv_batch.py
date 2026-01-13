@@ -20,7 +20,7 @@ from med_sar.semantic_checks import semantic_report
 
 
 def load_jsonl(p: Path):
-    return [json.loads(l) for l in p.open()]
+    return [json.loads(row) for row in p.open()]
 
 
 @torch.inference_mode()

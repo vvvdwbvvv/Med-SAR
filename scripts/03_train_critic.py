@@ -57,7 +57,7 @@ def main():
     # neg: generate from m23k questions
     import json
 
-    m23k_rows = [json.loads(l) for l in Path(args.m23k_dev).open()]
+    m23k_rows = [json.loads(row) for row in Path(args.m23k_dev).open()]
     random.shuffle(m23k_rows)
     m23k_rows = m23k_rows[: args.n_neg]
     neg = []

@@ -56,9 +56,6 @@ def build_m23k_jsonl(
 
     normalized_iter: Iterable[Dict[str, Any]] = iter_normalized()
     if dedup:
-        # Count dedup by materializing IDs of pre/post lengths is expensive.
-        # We approximate dedup count by tracking seen keys as we yield.
-        seen: set[str] = set()
 
         def iter_deduped() -> Iterator[Dict[str, Any]]:
             for rec in normalized_iter:

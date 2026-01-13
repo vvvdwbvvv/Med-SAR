@@ -206,7 +206,6 @@ def make_negative(text: str, cfg: CorruptionConfig) -> str:
 
     weights = cfg.transform_weights or build_default_config(cfg.seed).transform_weights
     names = list(weights.keys())
-    w = [weights[n] for n in names]
 
     k = rng.randint(cfg.num_transforms[0], cfg.num_transforms[1])
     chosen = rng.sample(names, k=k) if k <= len(names) else names

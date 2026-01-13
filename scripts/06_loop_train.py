@@ -84,7 +84,7 @@ def main():
             )
 
             # aggregate metrics
-            rows = [json.loads(l) for l in adv_path.open()]
+            rows = [json.loads(row) for row in adv_path.open()]
             style_mean = sum(x["style_score"] for x in rows) / len(rows)
             neg_rate = sum(1 for x in rows if x["neg_flip"]) / len(rows)
             num_rate = sum(1 for x in rows if x["num_mismatch"]) / len(rows)
