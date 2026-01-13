@@ -1,30 +1,34 @@
 # Sample usage:
 # python scripts/04_sft_doctor.py \
-#   --train data/processed/m23k_train.jsonl \
-#   --dev data/processed/m23k_val.jsonl \
-#   --base meta-llama/Llama-3.1-8B-Instruct \
+#   --train data/processed/m23k/m23k_train.jsonl \
+#   --dev data/processed/m23k/m23k_val.jsonl \
+#   --base meta-llama/Llama-3.2-3B-Instruct \
 #   --out models/doctor_sft \
 #   --max_len 1024
 
 from __future__ import annotations
 import argparse
-import sys
-from pathlib import Path
-from peft import LoraConfig
 import torch
-import bitsandbytes as bnb  # noqa: F401
+import json
+from pathlib import Path
+import bitsandbytes as bnb
+from peft import LoraConfig, get_peft_model # Added get_peft_model
 from datasets import Dataset
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
-    BitsAndBytesConfig,
     TrainingArguments,
     Trainer,
     DataCollatorForLanguageModeling,
+    BitsAndBytesConfig,
 )
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from utils.io import read_jsonl
+
+def load_jsonl(p: Path):
+    rows = []
+    for line in p.open():
+        rows.append(json.loads(line))
+    return rows
 
 
 def main():
@@ -38,13 +42,13 @@ def main():
     ap.add_argument("--max_len", type=int, default=1024)
     args = ap.parse_args()
 
-    tr = read_jsonl(Path(args.train))
-    dv = read_jsonl(Path(args.dev))
+    tr = load_jsonl(Path(args.train))
+    dv = load_jsonl(Path(args.dev))
 
     def format_ex(r):
-        q = r["question"]
-        a = r.get("answer_string", r.get("answer", ""))
-        return f"Question:\n{q}\n\nAnswer:\n{a}"
+        q = r.get("question") or r.get("prompt") or ""
+        a = r.get("answer_string") or r.get("answer") or ""
+        return f"Question:\n{q}\n\nAnswer:\n{a}" # Doubly escaped newlines for correct parsing
 
     ds_train = Dataset.from_dict({"text": [format_ex(r) for r in tr]})
     ds_dev = Dataset.from_dict({"text": [format_ex(r) for r in dv]})
@@ -73,18 +77,20 @@ def main():
     )
 
     peft_config = LoraConfig(
-        r=32,
+        r=16, 
         lora_alpha=32,
         target_modules=[
             "q_proj",
-            "k_proj",
             "v_proj",
-            "o_proj",
-            "gate_proj",
-            "up_proj",
-            "down_proj",
-        ],
+        ], 
+        lora_dropout=0.05, 
+        bias="none",      
+        task_type="CAUSAL_LM", 
     )
+
+    # Wrap the model with LoRA adapters
+    model = get_peft_model(model, peft_config)
+    model.print_trainable_parameters()
 
     collator = DataCollatorForLanguageModeling(tok, mlm=False)
 
@@ -93,13 +99,17 @@ def main():
         per_device_train_batch_size=1,
         gradient_accumulation_steps=8,
         learning_rate=2e-5,
-        num_train_epochs=1,
+        num_train_epochs=30,
         eval_strategy="steps",
-        eval_steps=200,
-        save_steps=200,
-        logging_steps=50,
+        max_steps=3000,
+        eval_steps=30,
+        save_steps=30,
+        logging_steps=30,
+        use_liger_kernel=True,
         fp16=True,
+        gradient_checkpointing=True,
         report_to="none",
+        gradient_checkpointing_kwargs={"use_reentrant": False},
     )
 
     trainer = Trainer(
@@ -117,3 +127,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
