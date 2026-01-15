@@ -36,7 +36,7 @@ def main():
     ap.add_argument("--dev", type=str, required=True)
     ap.add_argument(
         "--base", type=str, required=True
-    )  # e.g. meta-llama/Llama-3.1-8B-Instruct (local)
+    )  # e.g. meta-llama/Llama-3.2-3B (local)
     ap.add_argument("--out", type=str, required=True)
     ap.add_argument("--max_len", type=int, default=1024)
     ap.add_argument("--wandb_run_name", type=str, default=None)
@@ -101,16 +101,16 @@ def main():
         learning_rate=2e-5,
         num_train_epochs=3,
         eval_strategy="steps",
-        steps_per_epoch = 1000,
-        eval_steps=30,
-        save_steps=30,
-        logging_steps=30,
-        use_liger_kernel=True,
+        eval_steps=50,
+        save_steps=500,
+        logging_steps=50,
+        use_liger_kernel=False,
         fp16=True,
         gradient_checkpointing=True,
         report_to="wandb",
         run_name=args.wandb_run_name,
         gradient_checkpointing_kwargs={"use_reentrant": False},
+        push_to_hub=True,
     )
 
     trainer = Trainer(
@@ -120,10 +120,15 @@ def main():
         eval_dataset=ds_dev,
         data_collator=collator,
     )
-    trainer.train()
+    train_result = trainer.train()
+
     trainer.save_model(args.out)
-    tok.save_pretrained(args.out)
-    print(f"doctor saved to {args.out}")
+    if trainer.tokenizer is not None:
+        trainer.tokenizer.save_pretrained(args.out)
+
+    trainer.push_to_hub(
+        commit_message=f"Final LoRA adapter - {args.wandb_run_name}",
+    )
 
 
 if __name__ == "__main__":
