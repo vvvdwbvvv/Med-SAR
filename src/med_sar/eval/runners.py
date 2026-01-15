@@ -52,7 +52,9 @@ class GenerateConfig:
 
 
 class BaseRunner:
-    def generate(self, prompts: Sequence[str], *, cfg: GenerateConfig) -> Tuple[List[str], List[str]]:
+    def generate(
+        self, prompts: Sequence[str], *, cfg: GenerateConfig
+    ) -> Tuple[List[str], List[str]]:
         raise NotImplementedError
 
 
@@ -69,11 +71,15 @@ class OpenAICompatRunner(BaseRunner):
         if model is None:
             models = self._client.models.list().data
             if not models:
-                raise RuntimeError("No models available from the local API; pass --model.")
+                raise RuntimeError(
+                    "No models available from the local API; pass --model."
+                )
             model = models[0].id
         self.model = model
 
-    def generate(self, prompts: Sequence[str], *, cfg: GenerateConfig) -> Tuple[List[str], List[str]]:
+    def generate(
+        self, prompts: Sequence[str], *, cfg: GenerateConfig
+    ) -> Tuple[List[str], List[str]]:
         response = self._client.completions.create(
             model=self.model,
             prompt=list(prompts),
@@ -82,7 +88,9 @@ class OpenAICompatRunner(BaseRunner):
             max_tokens=cfg.max_new_tokens,
         )
         raw_preds = [choice.text for choice in response.choices]
-        postprocessed_preds = [pred.replace("</s>", "").lstrip(" ") for pred in raw_preds]
+        postprocessed_preds = [
+            pred.replace("</s>", "").lstrip(" ") for pred in raw_preds
+        ]
         return postprocessed_preds, raw_preds
 
 
@@ -98,7 +106,10 @@ class TransformersRunner(BaseRunner):
         dtype = _pick_dtype(self.device)
 
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        if getattr(tokenizer, "pad_token_id", None) is None and getattr(tokenizer, "eos_token_id", None) is not None:
+        if (
+            getattr(tokenizer, "pad_token_id", None) is None
+            and getattr(tokenizer, "eos_token_id", None) is not None
+        ):
             tokenizer.pad_token_id = tokenizer.eos_token_id
         chat_template = _load_chat_template(model_path)
         if chat_template and not getattr(tokenizer, "chat_template", None):
@@ -106,7 +117,9 @@ class TransformersRunner(BaseRunner):
 
         adapter_cfg_path = Path(model_path) / "adapter_config.json"
         if base_model is None and adapter_cfg_path.exists():
-            base_model = json.loads(adapter_cfg_path.read_text()).get("base_model_name_or_path")
+            base_model = json.loads(adapter_cfg_path.read_text()).get(
+                "base_model_name_or_path"
+            )
 
         model = AutoModelForCausalLM.from_pretrained(
             base_model or model_path,
@@ -125,7 +138,9 @@ class TransformersRunner(BaseRunner):
         self.tokenizer = tokenizer
         self.model = model
 
-    def generate(self, prompts: Sequence[str], *, cfg: GenerateConfig) -> Tuple[List[str], List[str]]:
+    def generate(
+        self, prompts: Sequence[str], *, cfg: GenerateConfig
+    ) -> Tuple[List[str], List[str]]:
         rendered: List[str] = []
         if cfg.use_chat_template:
             rendered = [_apply_chat_template(self.tokenizer, p) for p in prompts]
