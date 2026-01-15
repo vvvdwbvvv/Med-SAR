@@ -67,7 +67,7 @@ def main():
         args.base,
         attn_implementation="sdpa",
         torch_dtype=torch.float16,
-        use_cache=True,
+        use_cache=False,
         quantization_config=BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_compute_dtype=torch.float16,
@@ -99,18 +99,18 @@ def main():
         per_device_train_batch_size=1,
         gradient_accumulation_steps=8,
         learning_rate=2e-5,
-        num_train_epochs=3,
+        num_train_epochs=1,
         eval_strategy="steps",
-        eval_steps=50,
+        eval_steps=500,
         save_steps=500,
-        logging_steps=50,
+        logging_steps=500,
         use_liger_kernel=False,
         fp16=True,
         gradient_checkpointing=True,
         report_to="wandb",
         run_name=args.wandb_run_name,
         gradient_checkpointing_kwargs={"use_reentrant": False},
-        push_to_hub=True,
+        push_to_hub=False,
     )
 
     trainer = Trainer(
