@@ -35,7 +35,10 @@ DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
         "split": "validation",
         "question_path": ["data", "Question"],
         "context_path": ["data", "Context"],  # list[str]
-        "options": {"type": "path", "path": ["data", "Options"]},  # dict {"A": "...", "B": "...", "C": "..."}
+        "options": {
+            "type": "path",
+            "path": ["data", "Options"],
+        },  # dict {"A": "...", "B": "...", "C": "..."}
         "answer": {"type": "letter", "path": ["data", "Correct Option"]},  # "A"/"B"/"C"
     },
     "mmlu_clinical": {
@@ -43,8 +46,14 @@ DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
         "split": "test",
         "question_path": ["data", "Question"],
         "context_path": None,
-        "options": {"type": "path", "path": ["data", "Options"]},  # dict {"A": "...", "B": "...", "C": "...", "D": "..."}
-        "answer": {"type": "letter", "path": ["data", "Correct Option"]},  # "A"/"B"/"C"/"D"
+        "options": {
+            "type": "path",
+            "path": ["data", "Options"],
+        },  # dict {"A": "...", "B": "...", "C": "...", "D": "..."}
+        "answer": {
+            "type": "letter",
+            "path": ["data", "Correct Option"],
+        },  # "A"/"B"/"C"/"D"
     },
     "pubmedqa": {
         "dataset": "qiaojin/PubMedQA",
@@ -230,7 +239,9 @@ def format_prompt(item: Mapping[str, Any], cfg: Mapping[str, Any]) -> str:
     if opt_str:
         parts.append(opt_str + "\n")
 
-    parts.append("Please answer with the correct option letter in the format: <answer> A </answer>")
+    parts.append(
+        "Please answer with the correct option letter in the format: <answer> A </answer>"
+    )
     return "\n".join(parts)
 
 
@@ -292,7 +303,9 @@ def evaluate_on_dataset(
     out_dir = Path(f"results/{Path(model_path).name}/{dataset_name}")
     out_dir.mkdir(parents=True, exist_ok=True)
     result_file = out_dir / "result.json"
-    result_file.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
+    result_file.write_text(
+        json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     print(f"Saved results to {result_file}")
 
     metrics = get_results(result_file)
@@ -320,7 +333,9 @@ def main() -> None:
     model_name = Path(args.model).name
 
     with output_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["model", "dataset", "accuracy", "evaluated", "total"])
+        writer = csv.DictWriter(
+            f, fieldnames=["model", "dataset", "accuracy", "evaluated", "total"]
+        )
         writer.writeheader()
 
         for dataset_name in args.datasets:
