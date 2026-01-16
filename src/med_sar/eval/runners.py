@@ -102,6 +102,13 @@ class TransformersRunner(BaseRunner):
         base_model: Optional[str] = None,
         device: Optional[str] = None,
     ):
+        import gc
+
+        # Clear memory before loading
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
         self.device = _pick_device(device)
         dtype = _pick_dtype(self.device)
 
@@ -127,7 +134,7 @@ class TransformersRunner(BaseRunner):
 
         model = AutoModelForCausalLM.from_pretrained(
             base_model or model_path,
-            torch_dtype=dtype,
+            dtype=dtype,
             trust_remote_code=True,
             device_map="auto",  # Add automatic device mapping
             low_cpu_mem_usage=True,  # Reduce CPU memory usage
