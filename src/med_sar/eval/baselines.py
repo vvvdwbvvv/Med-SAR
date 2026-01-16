@@ -261,9 +261,11 @@ def evaluate_on_dataset(
 
     print(f"Loading {cfg['dataset']}...")
     if "name" in cfg:
-        ds = load_dataset(cfg["dataset"], cfg["name"], split=cfg["split"])
+        ds = load_dataset(
+            cfg["dataset"], cfg["name"], split=cfg["split"], trust_remote_code=True
+        )
     else:
-        ds = load_dataset(cfg["dataset"], split=cfg["split"])
+        ds = load_dataset(cfg["dataset"], split=cfg["split"], trust_remote_code=True)
 
     print(f"Dataset size: {len(ds)}")
 
