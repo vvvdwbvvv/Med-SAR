@@ -105,6 +105,7 @@ class TransformersRunner(BaseRunner):
         self.device = _pick_device(device)
         dtype = _pick_dtype(self.device)
 
+        print(f"Loading tokenizer from {model_path}...")
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         if (
             getattr(tokenizer, "pad_token_id", None) is None
@@ -121,22 +122,39 @@ class TransformersRunner(BaseRunner):
                 "base_model_name_or_path"
             )
 
+        print(f"Loading model from {base_model or model_path}...")
+        print(f"Using dtype: {dtype}, device: {self.device}")
+
         model = AutoModelForCausalLM.from_pretrained(
             base_model or model_path,
             torch_dtype=dtype,
             trust_remote_code=True,
+            device_map="auto",  # Add automatic device mapping
+            low_cpu_mem_usage=True,  # Reduce CPU memory usage
+            max_memory={0: "15GB"}
+            if torch.cuda.is_available()
+            else None,  # Limit GPU memory for Colab
         )
+
         adapter_path = Path(model_path) / "adapter_model.safetensors"
         if adapter_path.exists():
+            print(f"Loading adapter from {model_path}...")
             from peft import PeftModel
 
             model = PeftModel.from_pretrained(model, model_path)
 
         model.eval()
-        model.to(self.device)
+        # Don't call model.to() when using device_map="auto"
+        # model.to(self.device)
 
         self.tokenizer = tokenizer
         self.model = model
+
+        print("✓ Model loaded successfully")
+        if torch.cuda.is_available():
+            print(
+                f"GPU Memory allocated: {torch.cuda.memory_allocated() / 1024**3:.2f}GB"
+            )
 
     def generate(
         self, prompts: Sequence[str], *, cfg: GenerateConfig
