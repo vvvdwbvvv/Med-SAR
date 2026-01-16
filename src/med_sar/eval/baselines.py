@@ -68,6 +68,17 @@ DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
             "mapping": {"yes": "A", "no": "B", "maybe": "C"},
         },
     },
+    "medxpertqa": {
+        "dataset": "TsinghuaC3I/MedXpertQA",
+        "split": "test",  # or "train" or "validation" - check what's available
+        "question_path": ["question"],
+        "context_path": None,
+        "options": {
+            "type": "path",
+            "path": ["options"],
+        },  # dict {"A": "...", "B": "...", "C": "...", "D": "...", "E": "..."}
+        "answer": {"type": "letter", "path": ["label"]},  # "A"/"B"/"C"/"D"/"E"
+    },
 }
 
 
