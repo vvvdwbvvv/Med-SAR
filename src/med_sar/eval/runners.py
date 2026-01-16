@@ -134,7 +134,7 @@ class TransformersRunner(BaseRunner):
 
         model = AutoModelForCausalLM.from_pretrained(
             base_model or model_path,
-            dtype=dtype,
+            torch_dtype=dtype,
             trust_remote_code=True,
             device_map="auto",  # Add automatic device mapping
             low_cpu_mem_usage=True,  # Reduce CPU memory usage

@@ -1,220 +1,338 @@
+# python scripts/07_eval_baseline.py \
+#   --models sft=/content/doctor_sft_merged \
+#   --datasets medmcqa pubmedqa mmlu_clinical \
+#   --out_csv results/additional_datasets.csv \
+#   --batch_size 8
 from __future__ import annotations
+
 import argparse
+import csv
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict, Iterable, List, Mapping, Optional
+
 from datasets import load_dataset
 from tqdm import tqdm
 
 from med_sar.eval.runners import GenerateConfig, TransformersRunner
 from med_sar.eval.scorer import get_results
 
-DATASET_CONFIGS = {
+
+# -----------------------------
+# Dataset configs (true schemas)
+# -----------------------------
+DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
     "medmcqa": {
         "dataset": "openlifescienceai/medmcqa",
-        "split": "validation",  # use validation since test doesn't have labels
-        "question_field": "question",
-        "options_field": "options",
-        "answer_field": "cop",  # correct option index (0-3)
+        "split": "validation",  # test doesn't have labels
+        "question_path": ["question"],
+        "context_path": None,
+        "options": {"type": "fields", "fields": ["opa", "opb", "opc", "opd"]},
+        "answer": {"type": "index", "path": ["cop"]},  # int 0-3
     },
-    "pubmedqa": {
-        "dataset": "qiaojin/PubMedQA",
-        "name": "pqa_labeled",  # need to specify subset
-        "split": "test",
-        "question_field": "question",
-        "context_field": "context",
-        "answer_field": "final_decision",
+    "pubmedqa_ols": {
+        "dataset": "openlifescienceai/pubmedqa",
+        "split": "validation",
+        "question_path": ["data", "Question"],
+        "context_path": ["data", "Context"],  # list[str]
+        "options": {"type": "path", "path": ["data", "Options"]},  # dict {"A": "...", "B": "...", "C": "..."}
+        "answer": {"type": "letter", "path": ["data", "Correct Option"]},  # "A"/"B"/"C"
     },
     "mmlu_clinical": {
         "dataset": "openlifescienceai/mmlu_clinical_knowledge",
         "split": "test",
-        "question_field": "question",
-        "options_field": "choices",
-        "answer_field": "answer",  # integer index
+        "question_path": ["data", "Question"],
+        "context_path": None,
+        "options": {"type": "path", "path": ["data", "Options"]},  # dict {"A": "...", "B": "...", "C": "...", "D": "..."}
+        "answer": {"type": "letter", "path": ["data", "Correct Option"]},  # "A"/"B"/"C"/"D"
     },
-    "pubmedqa_ols": {
-        "dataset": "openlifescienceai/pubmedqa",
-        "split": "test",
-        "question_field": "question",
-        "context_field": "context",
-        "answer_field": "final_decision",
+    "pubmedqa": {
+        "dataset": "qiaojin/PubMedQA",
+        "name": "pqa_labeled",
+        "split": "train",
+        "question_path": ["question"],
+        "context_path": ["context", "contexts"],  # list[str]
+        "options": {"type": "static", "options": {"A": "yes", "B": "no", "C": "maybe"}},
+        "answer": {
+            "type": "map",
+            "path": ["final_decision"],  # "yes"/"no"/"maybe"
+            "mapping": {"yes": "A", "no": "B", "maybe": "C"},
+        },
     },
 }
 
 
-def format_options(options: Any) -> str:
-    """Format options into lettered list."""
-    if options is None:
-        return ""
-    if isinstance(options, dict):
-        options = list(options.values())
-    if not isinstance(options, list):
+# -----------------------------
+# Helpers: nested access / normalize
+# -----------------------------
+def get_path(item: Mapping[str, Any], path: Optional[List[str]]) -> Any:
+    if not path:
+        return None
+
+    cur: Any = item
+    for key in path:
+        if not isinstance(cur, Mapping) or key not in cur:
+            return None
+        cur = cur[key]
+    return cur
+
+
+def _nonempty_strs(values: Iterable[Any]) -> List[str]:
+    out: List[str] = []
+    for v in values:
+        s = str(v).strip()
+        if s:
+            out.append(s)
+    return out
+
+
+def normalize_context(ctx: Any) -> str:
+    """
+    Normalize context into a single string.
+    - list[str] -> join
+    - dict with 'contexts' or 'Context' -> join
+    - str -> itself
+    - None -> ""
+    """
+    if ctx is None:
         return ""
 
-    lines = []
-    for i, opt in enumerate(options):
-        lines.append(f"{chr(65 + i)}. {opt}")
+    if isinstance(ctx, str):
+        return ctx.strip()
+
+    if isinstance(ctx, list):
+        return " ".join(_nonempty_strs(ctx))
+
+    if isinstance(ctx, dict):
+        if isinstance(ctx.get("contexts"), list):
+            return " ".join(_nonempty_strs(ctx["contexts"]))
+        if isinstance(ctx.get("Context"), list):
+            return " ".join(_nonempty_strs(ctx["Context"]))
+
+    return str(ctx).strip()
+
+
+def _letter_ordered_keys(d: Mapping[str, Any]) -> Optional[List[str]]:
+    # Returns ordered letter keys if the keys look like single letters.
+    keys = [str(k).strip().upper() for k in d.keys()]
+    if not keys or not all(len(k) == 1 and k.isalpha() for k in keys):
+        return None
+    return sorted(set(keys))
+
+
+def format_options_from_dict(opt_dict: Mapping[str, Any]) -> str:
+    ordered = _letter_ordered_keys(opt_dict)
+    keys = ordered if ordered is not None else [str(k) for k in opt_dict.keys()]
+
+    lines: List[str] = []
+    for k in keys:
+        v = opt_dict.get(k)
+        if v is None:
+            v = opt_dict.get(str(k).lower())
+        if v is None:
+            v = opt_dict.get(str(k).upper())
+        if v is None:
+            continue
+
+        text = str(v).strip()
+        if not text:
+            continue
+        lines.append(f"{str(k).strip().upper()}. {text}")
+
     return "\n".join(lines)
 
 
-def format_prompt(item: Dict[str, Any], config: Dict[str, str]) -> str:
-    """Format question with options if available."""
-    prompt_parts = []
-
-    # Add context if available
-    if "context_field" in config and config["context_field"] in item:
-        context = item[config["context_field"]]
-        if isinstance(context, dict):
-            # Handle PubMedQA context format
-            context = " ".join(context.get("contexts", []))
-        if context:
-            prompt_parts.append(f"Context: {context}\n")
-
-    # Add question
-    question = item[config["question_field"]]
-    prompt_parts.append(f"Question: {question}\n")
-
-    # Add options if available
-    if "options_field" in config and config["options_field"] in item:
-        options = item[config["options_field"]]
-        options_str = format_options(options)
-        if options_str:
-            prompt_parts.append(f"{options_str}\n")
-
-    # Add instruction
-    prompt_parts.append(
-        "Please answer with the correct option letter in the format: <answer> A </answer>"
-    )
-
-    return "\n".join(prompt_parts)
+def _format_options_from_list(options: List[Any]) -> str:
+    lines: List[str] = []
+    for i, v in enumerate(options):
+        text = str(v).strip()
+        if not text:
+            continue
+        lines.append(f"{chr(65 + i)}. {text}")
+    return "\n".join(lines)
 
 
-def get_gold_label(item: Dict[str, Any], config: Dict[str, str]) -> str:
-    """Extract gold label from item."""
-    answer = item[config["answer_field"]]
+def extract_options(item: Mapping[str, Any], cfg: Mapping[str, Any]) -> str:
+    opt_cfg = cfg.get("options")
+    if not opt_cfg:
+        return ""
 
-    # Handle integer index (convert to letter)
-    if isinstance(answer, int):
-        return chr(65 + answer)  # 0->A, 1->B, 2->C, 3->D
+    opt_type = opt_cfg.get("type")
 
-    # Handle string answers
-    return str(answer)
+    if opt_type == "fields":
+        fields: List[str] = opt_cfg["fields"]
+        values = [item.get(f) for f in fields]
+        return _format_options_from_list(values)
+
+    if opt_type == "path":
+        obj = get_path(item, opt_cfg["path"])
+        if isinstance(obj, Mapping):
+            return format_options_from_dict(obj)
+        if isinstance(obj, list):
+            return _format_options_from_list(obj)
+        return ""
+
+    if opt_type == "static":
+        obj = opt_cfg["options"]
+        if isinstance(obj, Mapping):
+            return format_options_from_dict(obj)
+        return ""
+
+    return ""
 
 
+def extract_gold_label(item: Mapping[str, Any], cfg: Mapping[str, Any]) -> str:
+    ans_cfg: Mapping[str, Any] = cfg["answer"]
+    ans_type = ans_cfg["type"]
+    raw = get_path(item, ans_cfg["path"])
+
+    if ans_type == "index":
+        if isinstance(raw, int):
+            return chr(65 + raw)
+        if isinstance(raw, str) and raw.strip().isdigit():
+            return chr(65 + int(raw.strip()))
+        raise ValueError(f"Expected index int for answer, got: {raw!r}")
+
+    if ans_type == "letter":
+        if raw is None:
+            raise ValueError("Missing letter answer")
+        s = str(raw).strip().upper()
+        if len(s) == 1 and s.isalpha():
+            return s
+        raise ValueError(f"Expected letter answer, got: {raw!r}")
+
+    if ans_type == "map":
+        if raw is None:
+            raise ValueError("Missing mapped answer")
+        key = str(raw).strip().lower()
+        mapping: Mapping[str, str] = ans_cfg["mapping"]
+        if key not in mapping:
+            raise ValueError(f"Unknown mapping key {key!r} for answer")
+        return mapping[key]
+
+    raise ValueError(f"Unknown answer type: {ans_type}")
+
+
+def format_prompt(item: Mapping[str, Any], cfg: Mapping[str, Any]) -> str:
+    parts: List[str] = []
+
+    ctx = get_path(item, cfg.get("context_path"))
+    ctx_str = normalize_context(ctx)
+    if ctx_str:
+        parts.append(f"Context: {ctx_str}\n")
+
+    q = get_path(item, cfg["question_path"])
+    if q is None:
+        raise ValueError(f"Missing question at path {cfg['question_path']}")
+    parts.append(f"Question: {str(q).strip()}\n")
+
+    opt_str = extract_options(item, cfg)
+    if opt_str:
+        parts.append(opt_str + "\n")
+
+    parts.append("Please answer with the correct option letter in the format: <answer> A </answer>")
+    return "\n".join(parts)
+
+
+# -----------------------------
+# Evaluation
+# -----------------------------
 def evaluate_on_dataset(
-    model_path: str, dataset_name: str, batch_size: int = 32, max_new_tokens: int = 512
+    model_path: str,
+    dataset_name: str,
+    batch_size: int = 32,
+    max_new_tokens: int = 32,
 ) -> Dict[str, float]:
-    """Evaluate model on a single dataset."""
     if dataset_name not in DATASET_CONFIGS:
         raise ValueError(f"Unknown dataset: {dataset_name}")
 
-    config = DATASET_CONFIGS[dataset_name]
+    cfg = DATASET_CONFIGS[dataset_name]
 
-    # Load dataset
-    print(f"Loading {config['dataset']}...")
-    if "name" in config:
-        dataset = load_dataset(config["dataset"], config["name"], split=config["split"])
+    print(f"Loading {cfg['dataset']}...")
+    if "name" in cfg:
+        ds = load_dataset(cfg["dataset"], cfg["name"], split=cfg["split"])
     else:
-        dataset = load_dataset(config["dataset"], split=config["split"])
+        ds = load_dataset(cfg["dataset"], split=cfg["split"])
 
-    print(f"Dataset size: {len(dataset)}")
+    print(f"Dataset size: {len(ds)}")
 
-    # Initialize runner
     runner = TransformersRunner(model_path=model_path)
 
-    results = []
-    total_batches = len(dataset) // batch_size + int(len(dataset) % batch_size != 0)
+    results: List[Dict[str, Any]] = []
+    total_batches = (len(ds) + batch_size - 1) // batch_size
 
-    for idx in tqdm(range(total_batches), desc=f"Evaluating {dataset_name}"):
-        batch_start = idx * batch_size
-        batch_end = min((idx + 1) * batch_size, len(dataset))
+    for b in tqdm(range(total_batches), desc=f"Evaluating {dataset_name}"):
+        start = b * batch_size
+        end = min((b + 1) * batch_size, len(ds))
+        batch = ds.select(range(start, end))
 
-        # Get batch items (handle different dataset types)
-        if hasattr(dataset, "select"):
-            batch = dataset.select(range(batch_start, batch_end))
-        else:
-            batch = [dataset[i] for i in range(batch_start, batch_end)]
+        prompts = [format_prompt(row, cfg) for row in batch]
 
-        # Format prompts
-        prompts = [format_prompt(item, config) for item in batch]
-
-        # Generate predictions
         preds, _ = runner.generate(
             prompts,
             cfg=GenerateConfig(
                 max_new_tokens=max_new_tokens,
-                temperature=0.1,  # lower temperature for deterministic answers
-                do_sample=False,
+                temperature=0.1,
             ),
         )
 
-        # Store results
         for i, pred in enumerate(preds):
-            item = batch[i]
-            gold_label = get_gold_label(item, config)
+            row = batch[i]
+            gold = extract_gold_label(row, cfg)
+            q = get_path(row, cfg["question_path"])
 
             results.append(
                 {
-                    "question": item[config["question_field"]],
-                    "answer": gold_label,
-                    "output": pred,
+                    "question": str(q).strip() if q is not None else "",
+                    "answer": gold,  # gold letter
+                    "output": pred,  # model raw output
                 }
             )
 
-    # Save results
-    output_dir = Path(f"results/{Path(model_path).name}/{dataset_name}")
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    result_file = output_dir / "result.json"
-    with result_file.open("w") as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
-
+    out_dir = Path(f"results/{Path(model_path).name}/{dataset_name}")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    result_file = out_dir / "result.json"
+    result_file.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Saved results to {result_file}")
 
-    # Get metrics
     metrics = get_results(result_file)
     return metrics
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--model", type=str, required=True, help="Path to model checkpoint"
-    )
-    parser.add_argument(
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", type=str, required=True, help="Path to model checkpoint")
+    ap.add_argument(
         "--datasets",
         nargs="+",
         choices=list(DATASET_CONFIGS.keys()),
         default=list(DATASET_CONFIGS.keys()),
         help="Datasets to evaluate on",
     )
-    parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--max_new_tokens", type=int, default=512)
-    parser.add_argument(
-        "--output_csv", type=str, default="results/additional_datasets.csv"
-    )
-    args = parser.parse_args()
-
-    import csv
+    ap.add_argument("--batch_size", type=int, default=32)
+    ap.add_argument("--max_new_tokens", type=int, default=32)
+    ap.add_argument("--output_csv", type=str, default="results/additional_datasets.csv")
+    args = ap.parse_args()
 
     output_path = Path(args.output_csv)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with output_path.open("w", newline="") as f:
-        writer = csv.DictWriter(
-            f, fieldnames=["model", "dataset", "accuracy", "evaluated", "total"]
-        )
+    model_name = Path(args.model).name
+
+    with output_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["model", "dataset", "accuracy", "evaluated", "total"])
         writer.writeheader()
 
-        model_name = Path(args.model).name
-
         for dataset_name in args.datasets:
-            print(f"\n{'=' * 50}")
+            print("\n" + "=" * 60)
             print(f"Evaluating on {dataset_name}")
-            print(f"{'=' * 50}\n")
+            print("=" * 60 + "\n")
 
             metrics = evaluate_on_dataset(
-                args.model, dataset_name, args.batch_size, args.max_new_tokens
+                args.model,
+                dataset_name,
+                batch_size=args.batch_size,
+                max_new_tokens=args.max_new_tokens,
             )
 
             writer.writerow(
