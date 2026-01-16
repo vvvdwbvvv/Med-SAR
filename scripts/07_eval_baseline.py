@@ -6,10 +6,13 @@
 
 from __future__ import annotations
 import argparse
+import sys
 import csv
 from pathlib import Path
 from prettytable import PrettyTable
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from med_sar.eval.baselines import evaluate_on_dataset, DATASET_CONFIGS
 
 
