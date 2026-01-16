@@ -70,6 +70,7 @@ DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
     "medxpertqa": {
         "dataset": "TsinghuaC3I/MedXpertQA",
+        "name": "Text",
         "split": "test",  # or "train" or "validation" - check what's available
         "question_path": ["question"],
         "context_path": None,
