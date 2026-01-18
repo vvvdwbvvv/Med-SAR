@@ -48,7 +48,14 @@ def _candidate_policies(t_values: List[float]) -> List[Tuple[List[str], float]]:
     return [(chain, t) for chain in chains for t in t_values]
 
 
-def _policy_score(sample_rows: List[Dict], ops: List[str], t: float, seed: int, guard_cfg: GuardConfig, calibration) -> float:
+def _policy_score(
+    sample_rows: List[Dict],
+    ops: List[str],
+    t: float,
+    seed: int,
+    guard_cfg: GuardConfig,
+    calibration,
+) -> float:
     scores = []
     for i, r in enumerate(sample_rows):
         clean = r.get("x_wrapped") or r.get("x_raw") or ""
@@ -97,7 +104,9 @@ def main() -> int:
 
     with log_path.open("w", encoding="utf-8") as log_f:
         for round_idx in range(1, args.rounds + 1):
-            sample = rng.sample(train_rows, k=min(args.policy_eval_samples, len(train_rows)))
+            sample = rng.sample(
+                train_rows, k=min(args.policy_eval_samples, len(train_rows))
+            )
             rng.shuffle(candidates)
             shortlist = candidates[: min(args.num_candidates, len(candidates))]
 
@@ -124,7 +133,8 @@ def main() -> int:
                         "best_t": best_t,
                         "best_score": best_score,
                         "candidates": [
-                            {"ops": ops, "t": t, "score": score} for score, ops, t in scored
+                            {"ops": ops, "t": t, "score": score}
+                            for score, ops, t in scored
                         ],
                     }
                 )

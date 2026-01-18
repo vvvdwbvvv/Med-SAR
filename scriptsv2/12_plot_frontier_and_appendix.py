@@ -50,7 +50,9 @@ def main() -> int:
     if slice_path.exists() and slices_meta_path.exists():
         metrics = pd.read_parquet(slice_path)
         meta = pd.read_parquet(slices_meta_path)
-        merged = metrics.merge(meta[["slice_id", "time_bucket"]], on="slice_id", how="left")
+        merged = metrics.merge(
+            meta[["slice_id", "time_bucket"]], on="slice_id", how="left"
+        )
         plt.figure(figsize=(7, 5))
         for tb, grp in merged.groupby("time_bucket"):
             series = grp.groupby("t")["accuracy"].mean().reset_index()

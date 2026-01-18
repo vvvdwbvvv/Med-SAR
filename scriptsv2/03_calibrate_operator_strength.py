@@ -37,7 +37,9 @@ def main() -> int:
     ap.add_argument("--mimic_manifest", type=str, required=True)
     ap.add_argument("--out", type=str, required=True)
     ap.add_argument("--operators_out", type=str, required=True)
-    ap.add_argument("--t_grid", type=float, nargs="+", default=[i / 10 for i in range(11)])
+    ap.add_argument(
+        "--t_grid", type=float, nargs="+", default=[i / 10 for i in range(11)]
+    )
     ap.add_argument("--proxy_csv", type=str, default=None)
     args = ap.parse_args()
 

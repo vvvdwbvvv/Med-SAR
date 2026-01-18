@@ -13,7 +13,7 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -128,14 +128,22 @@ def main() -> int:
     (out_dir / "wrapper_v1.txt").write_text(WRAPPER_V1, encoding="utf-8")
     (out_dir / "wrapper_id.txt").write_text(f"{WRAPPER_ID}\n", encoding="utf-8")
 
-    write_jsonl(out_dir / "m23k_train.jsonl", (build_wrapped_record(r, "train") for r in train))
-    write_jsonl(out_dir / "m23k_val.jsonl", (build_wrapped_record(r, "val") for r in val))
-    write_jsonl(out_dir / "m23k_test.jsonl", (build_wrapped_record(r, "test") for r in test))
+    write_jsonl(
+        out_dir / "m23k_train.jsonl", (build_wrapped_record(r, "train") for r in train)
+    )
+    write_jsonl(
+        out_dir / "m23k_val.jsonl", (build_wrapped_record(r, "val") for r in val)
+    )
+    write_jsonl(
+        out_dir / "m23k_test.jsonl", (build_wrapped_record(r, "test") for r in test)
+    )
 
     print(
         f"[m23k_v2] records={len(records)} train={len(train)} val={len(val)} test={len(test)}"
     )
-    print(f"[m23k_v2] wrote: {out_dir}/(m23k_train.jsonl, m23k_val.jsonl, m23k_test.jsonl)")
+    print(
+        f"[m23k_v2] wrote: {out_dir}/(m23k_train.jsonl, m23k_val.jsonl, m23k_test.jsonl)"
+    )
     return 0
 
 

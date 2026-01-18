@@ -85,7 +85,9 @@ def main() -> int:
     if "time_bucket" not in df.columns and "admission_time_bucket" in df.columns:
         df["time_bucket"] = df["admission_time_bucket"]
     if "time_bucket" not in df.columns and "charttime" in df.columns:
-        df["time_bucket"] = assign_time_buckets(df, time_col="charttime", k=args.time_buckets)
+        df["time_bucket"] = assign_time_buckets(
+            df, time_col="charttime", k=args.time_buckets
+        )
     if "length_bucket" not in df.columns and "length_tokens" in df.columns:
         df["length_bucket"] = assign_length_buckets(
             df, length_col="length_tokens", k=args.length_buckets
@@ -93,20 +95,24 @@ def main() -> int:
 
     df = build_slice_index(df)
 
-    t_values = sorted(df[args.t_col].dropna().unique().tolist()) if args.t_col in df.columns else [None]
+    t_values = (
+        sorted(df[args.t_col].dropna().unique().tolist())
+        if args.t_col in df.columns
+        else [None]
+    )
     base_t = min(t_values) if t_values else None
 
     if base_t is not None:
         base_counts = (
-            df[df[args.t_col] == base_t]
-            .groupby("slice_id")[args.id_col]
-            .nunique()
+            df[df[args.t_col] == base_t].groupby("slice_id")[args.id_col].nunique()
         )
         keep_slices = base_counts[base_counts >= args.min_slice_size].index.tolist()
         df = df[df["slice_id"].isin(keep_slices)]
 
     slice_meta = (
-        df.groupby(["slice_id", "time_bucket", "note_type_clean", "length_bucket"])[args.id_col]
+        df.groupby(["slice_id", "time_bucket", "note_type_clean", "length_bucket"])[
+            args.id_col
+        ]
         .nunique()
         .reset_index()
         .rename(columns={args.id_col: "n"})
@@ -194,7 +200,9 @@ def main() -> int:
 
     frontier = metrics_df.groupby("t")[metric_cols].mean().reset_index()
     frontier = frontier.dropna(subset=metric_cols)
-    frontier["on_frontier"] = pareto_frontier(frontier, metrics=metric_cols, maximize=maximize)
+    frontier["on_frontier"] = pareto_frontier(
+        frontier, metrics=metric_cols, maximize=maximize
+    )
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

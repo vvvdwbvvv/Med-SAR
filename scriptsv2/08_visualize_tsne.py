@@ -48,7 +48,9 @@ def main() -> int:
 
     clean = load_jsonl_text(Path(args.clean_jsonl), "x_wrapped", args.n, args.seed)
     adv = load_jsonl_text(Path(args.adv_jsonl), "x_adv", args.n, args.seed)
-    mimic = load_parquet_text(Path(args.mimic_parquet), args.n, args.seed, args.text_col)
+    mimic = load_parquet_text(
+        Path(args.mimic_parquet), args.n, args.seed, args.text_col
+    )
 
     enc = SentenceTransformer(args.model)
     X = enc.encode(clean + adv + mimic, batch_size=64, show_progress_bar=True)

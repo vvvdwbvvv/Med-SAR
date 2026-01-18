@@ -86,4 +86,6 @@ def check_guard(clean: str, adv: str, cfg: GuardConfig) -> GuardResult:
         "length_ratio": float(len_ratio),
     }
 
-    return GuardResult(passed=passed, reasons=reasons, metrics=metrics, primary_reason=primary_reason)
+    return GuardResult(
+        passed=passed, reasons=reasons, metrics=metrics, primary_reason=primary_reason
+    )

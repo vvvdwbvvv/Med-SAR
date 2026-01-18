@@ -12,7 +12,7 @@ import json
 import random
 from pathlib import Path
 import sys
-from typing import Dict, List
+from typing import Dict
 
 import yaml
 
@@ -61,7 +61,9 @@ def main() -> int:
         "max_length_ratio": guard_cfg.max_length_ratio,
         "allow_unit_changes": guard_cfg.allow_unit_changes,
     }
-    spec_path.write_text(yaml.safe_dump(spec_payload, sort_keys=False), encoding="utf-8")
+    spec_path.write_text(
+        yaml.safe_dump(spec_payload, sort_keys=False), encoding="utf-8"
+    )
 
     eval_path = out_dir / "guard_eval_samples.csv"
     table2_path = out_dir / "table2_guard_precision.json"

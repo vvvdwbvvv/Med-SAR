@@ -14,13 +14,18 @@ import sys
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
+from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from med_sar.data.mimic import iter_mimic_notes
 from med_sar.operators.proxies import compute_proxies
-from med_sar.protocol.n10_slicing import assign_time_buckets, assign_length_buckets, clean_note_type
+from med_sar.protocol.n10_slicing import (
+    assign_time_buckets,
+    assign_length_buckets,
+    clean_note_type,
+)
 
 
 def _require_parquet() -> None:
@@ -52,7 +57,8 @@ def build_manifest(
 ) -> pd.DataFrame:
     rows: List[Dict[str, Any]] = []
     notes_seen = 0
-    for note in iter_mimic_notes(
+
+    note_iter = iter_mimic_notes(
         input_paths,
         text_col=text_col,
         note_id_col=note_id_col,
@@ -63,7 +69,9 @@ def build_manifest(
         category_col=category_col,
         description_col=description_col,
         min_chars=min_note_chars,
-    ):
+    )
+    pbar = tqdm(note_iter, total=max_notes, desc="Processing notes", unit="note")
+    for note in pbar:
         notes_seen += 1
         if max_notes and notes_seen > max_notes:
             break
@@ -84,6 +92,9 @@ def build_manifest(
                 "text": text,
             }
         )
+        pbar.set_postfix({"notes": notes_seen})
+
+    pbar.close()
     return pd.DataFrame(rows)
 
 
@@ -121,7 +132,9 @@ def main() -> int:
         max_notes=args.max_notes,
     )
 
-    df["time_bucket"] = assign_time_buckets(df, time_col="charttime", k=args.time_buckets)
+    df["time_bucket"] = assign_time_buckets(
+        df, time_col="charttime", k=args.time_buckets
+    )
     df["admission_time_bucket"] = df["time_bucket"]
     df["length_bucket"] = assign_length_buckets(
         df, length_col="length_tokens", k=args.length_buckets

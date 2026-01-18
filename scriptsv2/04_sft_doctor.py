@@ -93,7 +93,9 @@ def main() -> int:
 
     dev_rows = load_jsonl(Path(args.dev))
 
-    train_texts = [format_ex(r, args.input_field, args.answer_field) for r in train_rows]
+    train_texts = [
+        format_ex(r, args.input_field, args.answer_field) for r in train_rows
+    ]
     if args.budget_report or args.max_tokens or args.max_examples:
         tracker = BudgetTracker(
             max_tokens=args.max_tokens,
@@ -101,7 +103,9 @@ def main() -> int:
         )
         tracker.add_texts(train_texts)
         if tracker.exceeds_budget():
-            raise SystemExit("Training budget exceeded; adjust max_tokens/max_examples.")
+            raise SystemExit(
+                "Training budget exceeded; adjust max_tokens/max_examples."
+            )
         if args.budget_report:
             tracker.save(args.budget_report)
 

@@ -57,12 +57,20 @@ def main() -> int:
     df = _load_table(args.preds)
 
     metrics: Dict[str, Dict[str, float]] = {}
-    t_values = sorted(df[args.t_col].dropna().unique().tolist()) if args.t_col in df.columns else [None]
+    t_values = (
+        sorted(df[args.t_col].dropna().unique().tolist())
+        if args.t_col in df.columns
+        else [None]
+    )
 
     base_preds = None
     if args.t_col in df.columns and args.id_col in df.columns:
         base = df[df[args.t_col] == min(t_values)]
-        base_preds = base.set_index(args.id_col)[args.y_pred_col].to_dict() if not base.empty else None
+        base_preds = (
+            base.set_index(args.id_col)[args.y_pred_col].to_dict()
+            if not base.empty
+            else None
+        )
 
     for t in t_values:
         slice_df = df if t is None else df[df[args.t_col] == t]

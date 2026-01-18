@@ -46,7 +46,9 @@ def main() -> int:
     ap.add_argument("--guard_spec", type=str, default=None)
     ap.add_argument("--out", type=str, required=True)
     ap.add_argument("--stats_out", type=str, required=True)
-    ap.add_argument("--t_values", type=float, nargs="+", default=[i / 10 for i in range(11)])
+    ap.add_argument(
+        "--t_values", type=float, nargs="+", default=[i / 10 for i in range(11)]
+    )
     ap.add_argument("--ops", type=str, default=None, help="Comma-separated ops chain")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max_resample", type=int, default=3)
