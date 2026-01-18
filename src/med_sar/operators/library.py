@@ -23,7 +23,9 @@ class OperatorSpec:
     fn: Callable[[str, CorruptConfig], str]
 
 
-def _apply(fn: Callable[[str, CorruptConfig], str], text: str, level: float, seed: int) -> str:
+def _apply(
+    fn: Callable[[str, CorruptConfig], str], text: str, level: float, seed: int
+) -> str:
     cfg = CorruptConfig(level=level, seed=seed)
     return fn(text, cfg)
 

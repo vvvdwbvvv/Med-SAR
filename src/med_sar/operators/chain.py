@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from random import Random
-from typing import Callable, Iterable, List, Sequence
+from typing import Callable, List, Sequence
 
 from .library import apply_operator, operator_names
 

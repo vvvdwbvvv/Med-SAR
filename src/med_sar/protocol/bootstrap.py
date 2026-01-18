@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, Sequence
 
 import numpy as np
 import pandas as pd
@@ -15,7 +15,9 @@ class DominanceResult:
     n_boot: int
 
 
-def _dominates(a: Dict[str, float], b: Dict[str, float], maximize: Dict[str, bool]) -> bool:
+def _dominates(
+    a: Dict[str, float], b: Dict[str, float], maximize: Dict[str, bool]
+) -> bool:
     better_or_equal = True
     strictly_better = False
     for m, a_val in a.items():

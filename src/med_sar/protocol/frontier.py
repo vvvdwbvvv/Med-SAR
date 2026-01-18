@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, Sequence
 
 import pandas as pd
 
@@ -74,7 +74,15 @@ def compute_breakpoints(
                         break
             rows.append(
                 {
-                    **{col: key for col, key in zip(group_cols, group_keys if isinstance(group_keys, tuple) else (group_keys,))},
+                    **{
+                        col: key
+                        for col, key in zip(
+                            group_cols,
+                            group_keys
+                            if isinstance(group_keys, tuple)
+                            else (group_keys,),
+                        )
+                    },
                     "metric": m,
                     "t_star": t_star,
                     "baseline": base_val,
