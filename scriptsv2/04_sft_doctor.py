@@ -163,7 +163,7 @@ def main() -> int:
 
     model = AutoModelForCausalLM.from_pretrained(
         args.base,
-        attn_implementation="sdpa,
+        attn_implementation="sdpa",
         torch_dtype=torch.float16,
         use_cache=False,
         quantization_config=BitsAndBytesConfig(
