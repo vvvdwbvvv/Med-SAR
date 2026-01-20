@@ -48,14 +48,22 @@ def main() -> int:
 
     df = _load_table(args.preds)
 
-    if "accuracy" not in df.columns and args.y_true_col in df.columns:
+    if "P" in df.columns:
+        df["accuracy"] = df["P"]
+    elif "accuracy" not in df.columns and args.y_true_col in df.columns:
         df["accuracy"] = (df[args.y_true_col] == df[args.y_pred_col]).astype(float)
 
     metric_cols: List[str] = ["accuracy"]
+    if "S" in df.columns:
+        df["stability"] = df["S"]
     if "stability" in df.columns:
         metric_cols.append("stability")
+    if "F_overall" in df.columns:
+        df["fact_error"] = df["F_overall"]
     if "fact_error" in df.columns:
         metric_cols.append("fact_error")
+    if "brier_micro" in df.columns:
+        df["calibration"] = df["brier_micro"]
     if "calibration" in df.columns:
         metric_cols.append("calibration")
 

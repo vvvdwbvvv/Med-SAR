@@ -14,9 +14,10 @@ import sys
 from typing import List
 
 import numpy as np
+import torch
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, roc_auc_score
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -31,7 +32,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--m23k", type=str, required=True)
     ap.add_argument("--calibration", type=str, default=None)
-    ap.add_argument("--out", type=str, required=True)
+    ap.add_argument("--out", type=str, default="runs/probe/domain_probe.pt")
     ap.add_argument("--n", type=int, default=2000)
     ap.add_argument("--t", type=float, default=0.5)
     ap.add_argument("--seed", type=int, default=0)
@@ -45,6 +46,13 @@ def main() -> int:
 
     X: List[List[float]] = []
     y: List[int] = []
+    feature_names = [
+        "proxy_newline_ratio",
+        "proxy_colon_ratio",
+        "proxy_digit_ratio",
+        "proxy_header_density",
+        "proxy_abbrev_ratio",
+    ]
 
     for i, r in enumerate(sample):
         clean = r.get("x_wrapped") or r.get("x_raw") or ""
@@ -58,9 +66,9 @@ def main() -> int:
         )
         clean_feat = compute_proxies(clean)
         adv_feat = compute_proxies(adv)
-        X.append(list(clean_feat.values()))
+        X.append([clean_feat.get(k.replace("proxy_", ""), 0.0) for k in feature_names])
         y.append(0)
-        X.append(list(adv_feat.values()))
+        X.append([adv_feat.get(k.replace("proxy_", ""), 0.0) for k in feature_names])
         y.append(1)
 
     X_arr = np.array(X)
@@ -73,15 +81,28 @@ def main() -> int:
     clf.fit(X_train, y_train)
     pred = clf.predict(X_test)
     acc = accuracy_score(y_test, pred)
+    prob = clf.predict_proba(X_test)[:, 1]
+    auc = roc_auc_score(y_test, prob)
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(
-        json.dumps({"accuracy": acc, "n": len(y_arr)}, indent=2),
+    torch.save(
+        {
+            "coef": clf.coef_.tolist(),
+            "intercept": clf.intercept_.tolist(),
+            "feature_names": feature_names,
+        },
+        out_path,
+    )
+
+    metrics_path = out_path.with_suffix(".json")
+    metrics_path.write_text(
+        json.dumps({"accuracy": acc, "auc": auc, "n": len(y_arr)}, indent=2),
         encoding="utf-8",
     )
 
     print(f"wrote {out_path}")
+    print(f"wrote {metrics_path}")
     return 0
 
 

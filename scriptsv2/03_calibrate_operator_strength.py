@@ -22,6 +22,29 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from med_sar.operators.calibration import default_calibration
 from med_sar.operators.library import OPERATOR_SPECS
 
+PROXY_DEFS = [
+    {
+        "name": "proxy_newline_ratio",
+        "description": "newline characters per total chars",
+    },
+    {
+        "name": "proxy_colon_ratio",
+        "description": "colon characters per total chars",
+    },
+    {
+        "name": "proxy_digit_ratio",
+        "description": "digit characters per total chars",
+    },
+    {
+        "name": "proxy_header_density",
+        "description": "header-like lines per non-empty line",
+    },
+    {
+        "name": "proxy_abbrev_ratio",
+        "description": "all-caps abbreviations per token",
+    },
+]
+
 
 def _require_parquet() -> None:
     try:
@@ -35,8 +58,9 @@ def _require_parquet() -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--mimic_manifest", type=str, required=True)
-    ap.add_argument("--out", type=str, required=True)
-    ap.add_argument("--operators_out", type=str, required=True)
+    ap.add_argument("--out", type=str, default="configs/calibration.json")
+    ap.add_argument("--operators_out", type=str, default="configs/operators.yaml")
+    ap.add_argument("--proxies_out", type=str, default="configs/proxies.yaml")
     ap.add_argument(
         "--t_grid", type=float, nargs="+", default=[i / 10 for i in range(11)]
     )
@@ -47,20 +71,21 @@ def main() -> int:
 
     df = pd.read_parquet(args.mimic_manifest)
     proxy_cols = [
-        "newline_ratio",
-        "colon_ratio",
-        "digit_ratio",
-        "header_density",
-        "abbrev_ratio",
+        ("proxy_newline_ratio", "newline_ratio"),
+        ("proxy_colon_ratio", "colon_ratio"),
+        ("proxy_digit_ratio", "digit_ratio"),
+        ("proxy_header_density", "header_density"),
+        ("proxy_abbrev_ratio", "abbrev_ratio"),
     ]
     proxy_stats: Dict[str, Dict[str, float]] = {}
-    for proxy in proxy_cols:
-        if proxy not in df.columns:
-            proxy_stats[proxy] = {"median": 0.0, "p90": 0.0}
+    for proxy_name, legacy_name in proxy_cols:
+        col = proxy_name if proxy_name in df.columns else legacy_name
+        if col not in df.columns:
+            proxy_stats[proxy_name] = {"median": 0.0, "p90": 0.0}
             continue
-        proxy_stats[proxy] = {
-            "median": float(df[proxy].median()),
-            "p90": float(df[proxy].quantile(0.9)),
+        proxy_stats[proxy_name] = {
+            "median": float(df[col].median()),
+            "p90": float(df[col].quantile(0.9)),
         }
 
     calibration = default_calibration(args.t_grid)
@@ -80,6 +105,8 @@ def main() -> int:
     out_path.write_text(json.dumps(calibration, indent=2), encoding="utf-8")
 
     operators_payload = {
+        "chain_rule": {"max_len": 2, "allow_repeat": False},
+        "t_grid": [float(t) for t in args.t_grid],
         "operators": [
             {
                 "name": spec.name,
@@ -91,13 +118,32 @@ def main() -> int:
                 "level_map": calibration["operators"][spec.name]["level_map"],
             }
             for spec in OPERATOR_SPECS
-        ]
+        ],
     }
     Path(args.operators_out).write_text(
         yaml.safe_dump(operators_payload, sort_keys=False), encoding="utf-8"
     )
 
-    proxy_csv = Path(args.proxy_csv) if args.proxy_csv else out_path.with_suffix(".csv")
+    proxies_payload = {
+        "proxy_set_version": "proxy5_v1",
+        "proxies": [
+            {
+                **proxy_def,
+                **proxy_stats.get(proxy_def["name"], {"median": 0.0, "p90": 0.0}),
+            }
+            for proxy_def in PROXY_DEFS
+        ],
+    }
+    Path(args.proxies_out).write_text(
+        yaml.safe_dump(proxies_payload, sort_keys=False), encoding="utf-8"
+    )
+
+    proxy_csv = (
+        Path(args.proxy_csv)
+        if args.proxy_csv
+        else Path("runs/calibration/proxy_targets.csv")
+    )
+    proxy_csv.parent.mkdir(parents=True, exist_ok=True)
     with proxy_csv.open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["proxy", "t", "target"])
@@ -107,6 +153,7 @@ def main() -> int:
 
     print(f"wrote calibration to {out_path}")
     print(f"wrote operators to {args.operators_out}")
+    print(f"wrote proxies to {args.proxies_out}")
     print(f"wrote proxy targets to {proxy_csv}")
     return 0
 

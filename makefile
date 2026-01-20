@@ -88,28 +88,28 @@ v2_calibrate:
 
 v2_guard:
 	$(UV) run scriptsv2/04_fact_guard_build.py \
-	--m23k $(V2_M23K_OUT)/m23k_train.jsonl \
+	--m23k $(V2_M23K_OUT)/m23k_wrapped_train.jsonl \
 	--calibration $(V2_CALIB_OUT) \
 	--out_dir $(V2_GUARD_OUT)
 
 v2_smoke:
 	$(UV) run scriptsv2/02_operator_smoke_test.py \
-	--m23k $(V2_M23K_OUT)/m23k_val.jsonl \
+	--m23k $(V2_M23K_OUT)/m23k_wrapped_val.jsonl \
 	--calibration $(V2_CALIB_OUT) \
 	--guard_spec $(V2_GUARD_OUT)/fact_guard_spec.yaml \
 	--out outputs/smoke/operator_samples.jsonl
 
 v2_sft:
 	$(UV) run scriptsv2/04_sft_doctor.py \
-	--train $(V2_M23K_OUT)/m23k_train.jsonl \
-	--dev $(V2_M23K_OUT)/m23k_val.jsonl \
+	--train $(V2_M23K_OUT)/m23k_wrapped_train.jsonl \
+	--dev $(V2_M23K_OUT)/m23k_wrapped_val.jsonl \
 	--base meta-llama/Llama-3.2-3B-Instruct \
 	--out models/doctor_sft_v2 \
 	--input_field x_wrapped
 
 v2_adv_batch:
 	$(UV) run scriptsv2/05_generate_adv_batch.py \
-	--m23k $(V2_M23K_OUT)/m23k_train.jsonl \
+	--m23k $(V2_M23K_OUT)/m23k_wrapped_train.jsonl \
 	--calibration $(V2_CALIB_OUT) \
 	--guard_spec $(V2_GUARD_OUT)/fact_guard_spec.yaml \
 	--out $(V2_ADV_OUT) \
@@ -117,8 +117,8 @@ v2_adv_batch:
 
 v2_selfplay:
 	$(UV) run scriptsv2/06_loop_train.py \
-	--train $(V2_M23K_OUT)/m23k_train.jsonl \
-	--dev $(V2_M23K_OUT)/m23k_val.jsonl \
+	--train $(V2_M23K_OUT)/m23k_wrapped_train.jsonl \
+	--dev $(V2_M23K_OUT)/m23k_wrapped_val.jsonl \
 	--base_model meta-llama/Llama-3.2-3B-Instruct \
 	--out_dir $(V2_LOOP_OUT) \
 	--calibration $(V2_CALIB_OUT) \
@@ -144,10 +144,10 @@ v2_pipeline: v2_m23k v2_mimic v2_calibrate v2_guard v2_smoke v2_sft v2_selfplay 
 	@echo "v2 pipeline complete"
 
 checkstyle:
-	$(PYTHON) -m ruff check . --exclude test; ruff_check_status=$$?; \
-	$(PYTHON) -m ruff format --check . --exclude test; ruff_format_status=$$?; \
-	$(PYTHON) -m ruff check . --fix --exclude test; \
-	$(PYTHON) -m ruff format . --exclude test; \
+	ruff check . --exclude test; ruff_check_status=$$?; \
+	ruff format --check . --exclude test; ruff_format_status=$$?; \
+	ruff check . --fix --exclude test; \
+	ruff format . --exclude test; \
 	if [ $$ruff_check_status -ne 0 ] || [ $$ruff_format_status -ne 0 ]; then \
 	    exit 1; \
 	fi

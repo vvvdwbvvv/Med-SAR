@@ -15,6 +15,7 @@ from pathlib import Path
 import sys
 from typing import Dict, List, Optional
 
+import pandas as pd
 import yaml
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -39,13 +40,33 @@ def _load_guard_config(path: str | None) -> GuardConfig:
     )
 
 
+def _require_parquet() -> None:
+    try:
+        import pyarrow  # noqa: F401
+    except Exception as exc:  # pragma: no cover - runtime check
+        raise SystemExit(
+            "pyarrow is required for parquet outputs. Install it and retry."
+        ) from exc
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--m23k", type=str, required=True)
     ap.add_argument("--calibration", type=str, default=None)
     ap.add_argument("--guard_spec", type=str, default=None)
-    ap.add_argument("--out", type=str, required=True)
-    ap.add_argument("--stats_out", type=str, required=True)
+    ap.add_argument("--out", type=str, default="data/processed/adv/adv_train.jsonl")
+    ap.add_argument("--guard_log_out", type=str, default="runs/adv_gen/guard_log.jsonl")
+    ap.add_argument(
+        "--proxies_out",
+        type=str,
+        default="runs/adv_gen/post_guard_proxies.parquet",
+    )
+    ap.add_argument(
+        "--stats_out",
+        type=str,
+        default=None,
+        help="Legacy path for guard stats (jsonl).",
+    )
     ap.add_argument(
         "--t_values", type=float, nargs="+", default=[i / 10 for i in range(11)]
     )
@@ -65,11 +86,19 @@ def main() -> int:
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    stats_path = Path(args.stats_out)
-    stats_path.parent.mkdir(parents=True, exist_ok=True)
+    guard_log_path = Path(args.guard_log_out)
+    guard_log_path.parent.mkdir(parents=True, exist_ok=True)
+    proxies_path = Path(args.proxies_out)
+    proxies_path.parent.mkdir(parents=True, exist_ok=True)
+    if args.stats_out:
+        stats_path = Path(args.stats_out)
+        stats_path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        stats_path = None
 
     out_rows: List[Dict] = []
-    stat_rows: List[Dict] = []
+    guard_rows: List[Dict] = []
+    proxy_rows: List[Dict] = []
 
     for i, r in enumerate(rows):
         clean = r.get("x_wrapped") or r.get("x_raw") or ""
@@ -104,6 +133,14 @@ def main() -> int:
             continue
 
         proxies = compute_proxies(adv)
+        proxies_prefixed = {f"proxy_{k}": v for k, v in proxies.items()}
+        f_vec = {
+            "F1": int("number_mismatch" in guard_result.reasons),
+            "F2": int("negation_flip" in guard_result.reasons),
+            "F3": int("unit_mismatch" in guard_result.reasons),
+            "F4": int("entity_drop" in guard_result.reasons),
+            "F5": int("length_ratio" in guard_result.reasons),
+        }
         out_rows.append(
             {
                 "id": r.get("id"),
@@ -111,37 +148,73 @@ def main() -> int:
                 "y": y,
                 "meta": {
                     "t": t,
-                    "ops": ops_used,
+                    "ops_chain": ops_used,
                     "tries": tries,
-                    "guard_pass": guard_result.passed,
-                    "guard_reasons": guard_result.reasons,
+                    "guard": {
+                        "accepted": guard_result.passed,
+                        "violations": f_vec,
+                    },
                 },
             }
         )
-        stat_rows.append(
+        guard_rows.append(
             {
                 "id": r.get("id"),
                 "t": t,
-                "ops": ops_used,
+                "ops_chain": ops_used,
                 "tries": tries,
-                "guard_pass": guard_result.passed,
+                "accepted": guard_result.passed,
                 "guard_reasons": guard_result.reasons,
                 "guard_primary": guard_result.primary_reason,
+                **f_vec,
                 **guard_result.metrics,
-                **proxies,
+                **proxies_prefixed,
             }
         )
+        if guard_result.passed:
+            proxy_rows.append(
+                {
+                    "id": r.get("id"),
+                    "t": t,
+                    **proxies_prefixed,
+                }
+            )
 
     with out_path.open("w", encoding="utf-8") as f:
         for row in out_rows:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
-    with stats_path.open("w", encoding="utf-8") as f:
-        for row in stat_rows:
+    with guard_log_path.open("w", encoding="utf-8") as f:
+        for row in guard_rows:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
+    if stats_path is not None:
+        with stats_path.open("w", encoding="utf-8") as f:
+            for row in guard_rows:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+    _require_parquet()
+    pd.DataFrame(proxy_rows).to_parquet(proxies_path, index=False)
+
+    summary = {}
+    if guard_rows:
+        df = pd.DataFrame(guard_rows)
+        summary["mean_retries_by_t"] = (
+            df.groupby("t")["tries"].mean().dropna().to_dict()
+        )
+        summary["reject_reason_dist"] = (
+            df.explode("guard_reasons")["guard_reasons"]
+            .value_counts()
+            .head(10)
+            .to_dict()
+        )
+    summary_path = guard_log_path.parent / "guard_summary.json"
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
     print(f"wrote {len(out_rows)} to {out_path}")
-    print(f"wrote {len(stat_rows)} to {stats_path}")
+    print(f"wrote {len(guard_rows)} to {guard_log_path}")
+    print(f"wrote {proxies_path}")
+    print(f"wrote {summary_path}")
     return 0
 
 

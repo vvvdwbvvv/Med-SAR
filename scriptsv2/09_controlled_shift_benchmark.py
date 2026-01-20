@@ -50,6 +50,27 @@ def _ece(y_true: np.ndarray, y_prob: np.ndarray, n_bins: int = 10) -> float:
     return float(ece)
 
 
+def _parse_reasons(val) -> List[str]:
+    if val is None:
+        return []
+    if isinstance(val, list):
+        return [str(v) for v in val]
+    if isinstance(val, str):
+        if ";" in val:
+            return [v for v in val.split(";") if v]
+        return [val] if val else []
+    return []
+
+
+_F_MAP = {
+    "number_mismatch": "F1",
+    "negation_flip": "F2",
+    "unit_mismatch": "F3",
+    "entity_drop": "F4",
+    "length_ratio": "F5",
+}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--preds", type=str, required=True)
@@ -115,7 +136,7 @@ def main() -> int:
         ]
         .nunique()
         .reset_index()
-        .rename(columns={args.id_col: "n"})
+        .rename(columns={args.id_col: "n", "note_type_clean": "note_type"})
     )
 
     base_preds = None
@@ -152,41 +173,68 @@ def main() -> int:
             elif "fact_error" in t_df.columns:
                 fact_error = float(t_df["fact_error"].mean())
 
-            calibration = None
+            f_vec = {f"F{i}": None for i in range(1, 6)}
+            for i in range(1, 6):
+                col = f"F{i}"
+                if col in t_df.columns:
+                    f_vec[col] = float(t_df[col].mean())
+            if (
+                any(v is None for v in f_vec.values())
+                and "guard_reasons" in t_df.columns
+            ):
+                reasons = t_df["guard_reasons"].apply(_parse_reasons)
+                reasons = reasons.apply(lambda rs: [_F_MAP.get(r, r) for r in rs])
+                for i in range(1, 6):
+                    key = f"F{i}"
+                    if f_vec[key] is None:
+                        f_vec[key] = float(reasons.apply(lambda r: key in r).mean())
+
+            brier = None
             if args.y_prob_col in t_df.columns:
                 y_prob = t_df[args.y_prob_col].to_numpy()
-                calibration = _ece((y_true == y_pred).astype(int), y_prob)
+                brier = float(np.mean((y_prob - y_true) ** 2))
 
             rows.append(
                 {
                     "slice_id": slice_id,
                     "t": t,
+                    "P": acc,
+                    "S": stability,
+                    "F_overall": fact_error,
+                    "brier_micro": brier,
+                    **f_vec,
                     "accuracy": acc,
                     "stability": stability,
                     "fact_error": fact_error,
-                    "calibration": calibration,
+                    "calibration": brier,
                     "n": int(len(t_df)),
                 }
             )
 
     metrics_df = pd.DataFrame(rows)
+    if not metrics_df.empty:
+        metrics_df = metrics_df.merge(
+            slice_meta[["slice_id", "time_bucket", "note_type", "length_bucket"]],
+            on="slice_id",
+            how="left",
+        )
 
     metric_cols = [
         col
-        for col in ["accuracy", "stability", "fact_error", "calibration"]
+        for col in ["P", "S", "F_overall", "brier_micro"]
         if col in metrics_df.columns and metrics_df[col].notna().any()
     ]
     maximize = {
-        "accuracy": True,
-        "stability": True,
-        "fact_error": False,
-        "calibration": False,
+        "P": True,
+        "S": True,
+        "F_overall": False,
+        "brier_micro": False,
     }
     thresholds = {
-        "accuracy": args.perf_drop,
-        "stability": args.stability_drop,
-        "fact_error": args.fact_increase,
-        "calibration": args.calib_increase,
+        "P": args.perf_drop,
+        "S": args.stability_drop,
+        "F_overall": args.fact_increase,
+        "brier_micro": args.calib_increase,
     }
 
     breakpoints = compute_breakpoints(

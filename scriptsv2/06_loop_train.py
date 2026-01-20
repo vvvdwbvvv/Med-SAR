@@ -55,8 +55,10 @@ def _policy_score(
     seed: int,
     guard_cfg: GuardConfig,
     calibration,
-) -> float:
+) -> Tuple[float, float]:
     scores = []
+    total = 0
+    passed = 0
     for i, r in enumerate(sample_rows):
         clean = r.get("x_wrapped") or r.get("x_raw") or ""
         adv = apply_chain(
@@ -67,11 +69,13 @@ def _policy_score(
             level_fn=lambda op, t_val: level_for_t(op, t_val, calibration),
         )
         guard = check_guard(clean, adv, guard_cfg)
+        total += 1
         if guard.passed:
+            passed += 1
             scores.append(1.0 - guard.metrics.get("entity_jaccard", 1.0))
     if not scores:
-        return 0.0
-    return sum(scores) / len(scores)
+        return 0.0, passed / max(1, total)
+    return sum(scores) / len(scores), passed / max(1, total)
 
 
 def main() -> int:
@@ -79,7 +83,7 @@ def main() -> int:
     ap.add_argument("--train", type=str, required=True)
     ap.add_argument("--dev", type=str, required=True)
     ap.add_argument("--base_model", type=str, required=True)
-    ap.add_argument("--out_dir", type=str, required=True)
+    ap.add_argument("--out_dir", type=str, default="runs/selfplay")
     ap.add_argument("--calibration", type=str, default=None)
     ap.add_argument("--guard_spec", type=str, default=None)
     ap.add_argument("--rounds", type=int, default=5)
@@ -92,7 +96,7 @@ def main() -> int:
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    log_path = out_dir / "policy_selection_logs.jsonl"
+    log_path = out_dir / "policy_selection_log.jsonl"
 
     train_rows = list(read_jsonl(args.train))
     rng = random.Random(args.seed)
@@ -107,12 +111,13 @@ def main() -> int:
             sample = rng.sample(
                 train_rows, k=min(args.policy_eval_samples, len(train_rows))
             )
+            sample_ids = [s.get("id") for s in sample]
             rng.shuffle(candidates)
             shortlist = candidates[: min(args.num_candidates, len(candidates))]
 
             scored = []
             for ops, t in shortlist:
-                score = _policy_score(
+                score, pass_rate = _policy_score(
                     sample,
                     ops,
                     t,
@@ -120,22 +125,36 @@ def main() -> int:
                     guard_cfg=guard_cfg,
                     calibration=calibration,
                 )
-                scored.append((score, ops, t))
+                scored.append((score, pass_rate, ops, t))
 
             scored.sort(reverse=True, key=lambda x: x[0])
-            best_score, best_ops, best_t = scored[0]
+            best_score, best_pass_rate, best_ops, best_t = scored[0]
+
+            candidates_payload = []
+            for score, pass_rate, ops, t in scored:
+                candidates_payload.append(
+                    {
+                        "t": t,
+                        "ops": ops,
+                        "loss": score,
+                        "accepted": pass_rate > 0.0,
+                        "guard_pass_rate": pass_rate,
+                    }
+                )
 
             log_f.write(
                 json.dumps(
                     {
                         "round": round_idx,
-                        "best_ops": best_ops,
-                        "best_t": best_t,
-                        "best_score": best_score,
-                        "candidates": [
-                            {"ops": ops, "t": t, "score": score}
-                            for score, ops, t in scored
-                        ],
+                        "step": round_idx,
+                        "sample_ids": sample_ids,
+                        "chosen": {
+                            "t": best_t,
+                            "ops": best_ops,
+                            "loss": best_score,
+                            "guard_pass_rate": best_pass_rate,
+                        },
+                        "candidates": candidates_payload,
                     }
                 )
                 + "\n"
@@ -143,31 +162,33 @@ def main() -> int:
             log_f.flush()
 
             adv_path = out_dir / f"adv_round_{round_idx}.jsonl"
-            stats_path = out_dir / f"guard_stats_round_{round_idx}.jsonl"
+            guard_log_path = out_dir / f"guard_log_round_{round_idx}.jsonl"
+            proxies_path = out_dir / f"post_guard_proxies_round_{round_idx}.parquet"
 
-            subprocess.check_call(
-                [
-                    "python",
-                    "scriptsv2/05_generate_adv_batch.py",
-                    "--m23k",
-                    args.train,
-                    "--calibration",
-                    args.calibration or "",
-                    "--guard_spec",
-                    args.guard_spec or "",
-                    "--out",
-                    str(adv_path),
-                    "--stats_out",
-                    str(stats_path),
-                    "--t_values",
-                    str(best_t),
-                    "--ops",
-                    ",".join(best_ops),
-                ]
-            )
+            cmd = [
+                "python",
+                "scriptsv2/05_generate_adv_batch.py",
+                "--m23k",
+                args.train,
+                "--out",
+                str(adv_path),
+                "--guard_log_out",
+                str(guard_log_path),
+                "--proxies_out",
+                str(proxies_path),
+                "--t_values",
+                str(best_t),
+                "--ops",
+                ",".join(best_ops),
+            ]
+            if args.calibration:
+                cmd += ["--calibration", args.calibration]
+            if args.guard_spec:
+                cmd += ["--guard_spec", args.guard_spec]
+            subprocess.check_call(cmd)
 
             if not args.skip_train:
-                ckpt_dir = out_dir / f"doctor_round_{round_idx}"
+                ckpt_dir = out_dir / f"doctor_round_{round_idx}" / "model"
                 subprocess.check_call(
                     [
                         "python",

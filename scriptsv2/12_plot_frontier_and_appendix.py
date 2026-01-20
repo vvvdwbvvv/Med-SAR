@@ -39,7 +39,9 @@ def main() -> int:
     if frontier_path.exists():
         frontier = pd.read_parquet(frontier_path)
         plt.figure(figsize=(6, 5))
-        plt.scatter(frontier["accuracy"], frontier["stability"], c=frontier["t"], s=40)
+        x_col = "P" if "P" in frontier.columns else "accuracy"
+        y_col = "S" if "S" in frontier.columns else "stability"
+        plt.scatter(frontier[x_col], frontier[y_col], c=frontier["t"], s=40)
         plt.xlabel("Accuracy")
         plt.ylabel("Stability")
         plt.title("Fig.2 Frontier")
@@ -55,8 +57,9 @@ def main() -> int:
         )
         plt.figure(figsize=(7, 5))
         for tb, grp in merged.groupby("time_bucket"):
-            series = grp.groupby("t")["accuracy"].mean().reset_index()
-            plt.plot(series["t"], series["accuracy"], label=f"time_bucket={tb}")
+            y_col = "P" if "P" in grp.columns else "accuracy"
+            series = grp.groupby("t")[y_col].mean().reset_index()
+            plt.plot(series["t"], series[y_col], label=f"time_bucket={tb}")
         plt.xlabel("t")
         plt.ylabel("Accuracy")
         plt.title("Fig.3 Temporal Slices")
@@ -67,11 +70,11 @@ def main() -> int:
     if args.guard_stats:
         guard_df = _load_guard_stats(Path(args.guard_stats))
         proxy_cols = [
-            "newline_ratio",
-            "colon_ratio",
-            "digit_ratio",
-            "header_density",
-            "abbrev_ratio",
+            "proxy_newline_ratio",
+            "proxy_colon_ratio",
+            "proxy_digit_ratio",
+            "proxy_header_density",
+            "proxy_abbrev_ratio",
         ]
         if not guard_df.empty:
             for proxy in proxy_cols:

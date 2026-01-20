@@ -2,7 +2,14 @@ import json
 import os
 import csv
 from pathlib import Path
+import sys
 from typing import Any, Dict, Iterable, Iterator, Sequence, Union
+
+try:
+    csv.field_size_limit(sys.maxsize)
+except Exception:
+    # If the platform refuses sys.maxsize, fall back to a large constant.
+    csv.field_size_limit(10_000_000)
 
 
 def write_jsonl(path: Union[str, Path], records: Iterable[Dict[str, Any]]) -> int:
@@ -50,7 +57,8 @@ def read_json(path: Union[str, Path]) -> Iterator[Dict[str, Any]]:
 
 def read_csv(path: Path) -> Iterator[Dict[str, Any]]:
     dialect = "excel-tab" if path.suffix.lower() == ".tsv" else "excel"
-    with path.open("r", encoding="utf-8", newline="") as f:
+    # errors="replace" avoids crashing on rare bad bytes in large corpora.
+    with path.open("r", encoding="utf-8", errors="replace", newline="") as f:
         reader = csv.DictReader(f, dialect=dialect)
         for row in reader:
             yield row
