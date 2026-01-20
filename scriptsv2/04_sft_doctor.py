@@ -190,7 +190,7 @@ def main() -> int:
 
     targs = TrainingArguments(
         output_dir=args.out,
-        per_device_train_batch_size=16,
+        per_device_train_batch_size=32,
         gradient_accumulation_steps=8,
         learning_rate=2e-5,
         num_train_epochs=1,
