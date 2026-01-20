@@ -195,7 +195,7 @@ def main() -> int:
         eval_steps=500,
         save_steps=500,
         logging_steps=500,
-        use_liger_kernel=False,
+        use_liger_kernel=True,
         fp16=True,
         gradient_checkpointing=True,
         report_to="wandb" if args.wandb_run_name else "none",
