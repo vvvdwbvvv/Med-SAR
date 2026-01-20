@@ -69,7 +69,7 @@ V2_LOOP_OUT=runs/selfplay
 V2_BENCH_OUT=runs/benchmark
 
 v2_m23k:
-	$(UV) run scriptsv2/00_build_m23k_json.py \
+	$(PYTHON) scriptsv2/00_build_m23k_json.py \
 	--output_dir $(V2_M23K_OUT) \
 	--seed 42 \
 	--train_ratio 0.9 \
@@ -77,28 +77,28 @@ v2_m23k:
 	--test_ratio 0.05
 
 v2_mimic:
-	$(UV) run scriptsv2/01_build_mimic_corpus.py \
+	$(PYTHON) scriptsv2/01_build_mimic_corpus.py \
 	--input data/raw/NOTEEVENTS.csv \
 	--output_dir $(V2_MIMIC_OUT) \
 	--text_col TEXT \
 	--min_note_chars 40
 
 v2_calibrate:
-	$(UV) run scriptsv2/03_calibrate_operator_strength.py \
+	$(PYTHON) scriptsv2/03_calibrate_operator_strength.py \
 	--mimic_manifest $(V2_MIMIC_OUT)/mimic_manifest.parquet \
 	--out $(V2_CALIB_OUT) \
 	--operators_out $(V2_OPERATORS_OUT) \
 	--proxies_out $(V2_PROXIES_OUT)
 
 v2_guard:
-	$(UV) run scriptsv2/04_fact_guard_build.py \
+	$(PYTHON) scriptsv2/04_fact_guard_build.py \
 	--m23k $(V2_M23K_OUT)/m23k_wrapped_train.jsonl \
 	--calibration $(V2_CALIB_OUT) \
 	--out_dir $(V2_GUARD_OUT) \
 	--config_out $(V2_GUARD_SPEC)
 
 v2_smoke:
-	$(UV) run scriptsv2/02_operator_smoke_test.py \
+	$(PYTHON) scriptsv2/02_operator_smoke_test.py \
 	--m23k $(V2_M23K_OUT)/m23k_wrapped_val.jsonl \
 	--calibration $(V2_CALIB_OUT) \
 	--guard_spec $(V2_GUARD_SPEC) \
@@ -106,7 +106,7 @@ v2_smoke:
 	--diff_out runs/smoke/samples_diff.txt
 
 v2_sft:
-	$(UV) run scriptsv2/04_sft_doctor.py \
+	$(PYTHON) scriptsv2/04_sft_doctor.py \
 	--train $(V2_M23K_OUT)/m23k_wrapped_train.jsonl \
 	--dev $(V2_M23K_OUT)/m23k_wrapped_val.jsonl \
 	--base meta-llama/Llama-3.2-3B-Instruct \
@@ -114,7 +114,7 @@ v2_sft:
 	--input_field x_wrapped
 
 v2_adv_batch:
-	$(UV) run scriptsv2/05_generate_adv_batch.py \
+	$(PYTHON) scriptsv2/05_generate_adv_batch.py \
 	--m23k $(V2_M23K_OUT)/m23k_wrapped_train.jsonl \
 	--calibration $(V2_CALIB_OUT) \
 	--guard_spec $(V2_GUARD_SPEC) \
@@ -123,7 +123,7 @@ v2_adv_batch:
 	--proxies_out $(V2_ADV_PROXIES)
 
 v2_selfplay:
-	$(UV) run scriptsv2/06_loop_train.py \
+	$(PYTHON) scriptsv2/06_loop_train.py \
 	--train $(V2_M23K_OUT)/m23k_wrapped_train.jsonl \
 	--dev $(V2_M23K_OUT)/m23k_wrapped_val.jsonl \
 	--base_model meta-llama/Llama-3.2-3B-Instruct \
@@ -132,18 +132,18 @@ v2_selfplay:
 	--guard_spec $(V2_GUARD_SPEC)
 
 v2_benchmark:
-	$(UV) run scriptsv2/09_controlled_shift_benchmark.py \
+	$(PYTHON) scriptsv2/09_controlled_shift_benchmark.py \
 	--preds outputs/preds.parquet \
 	--manifest $(V2_MIMIC_OUT)/mimic_manifest.parquet \
 	--out_dir $(V2_BENCH_OUT)
 
 v2_plots:
-	$(UV) run scriptsv2/12_plot_frontier_and_appendix.py \
+	$(PYTHON) scriptsv2/12_plot_frontier_and_appendix.py \
 	--out_dir $(V2_BENCH_OUT) \
 	--guard_stats $(V2_ADV_GUARD_LOG)
 
 v2_selfplay_report:
-	$(UV) run scriptsv2/10_selfplay_evolving_effect.py \
+	$(PYTHON) scriptsv2/10_selfplay_evolving_effect.py \
 	--policy_logs $(V2_LOOP_OUT)/policy_selection_log.jsonl \
 	--out_dir runs/selfplay_evolving \
 	--baseline_dir runs/baseline_benchmark \
