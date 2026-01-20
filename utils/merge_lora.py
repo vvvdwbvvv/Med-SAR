@@ -3,7 +3,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 import torch
 
-base_id = "meta-llama/Llama-3.2-3B-Instruct"   
+base_id = "meta-llama/Llama-3.2-3B-Instruct"
 adapter_id = "EddieTsai123/doctor_sft_v2"
 out_dir = "runs/merged_doctor_sft_v2"
 

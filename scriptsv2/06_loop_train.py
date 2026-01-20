@@ -5,7 +5,9 @@
 #   --base_model meta-llama/Llama-3.2-3B-Instruct \
 #   --out_dir outputs/loop_train_v2 \
 #   --calibration outputs/calibration.json \
-#   --guard_spec outputs/fact_guard_spec.yaml
+#   --guard_spec outputs/fact_guard_spec.yaml \
+#   --wandb \
+#   --wandb_run_name loop_train_v2
 
 from __future__ import annotations
 
@@ -92,11 +94,41 @@ def main() -> int:
     ap.add_argument("--num_candidates", type=int, default=6)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--skip_train", action="store_true")
+    ap.add_argument("--wandb", action="store_true", help="Enable Weights & Biases.")
+    ap.add_argument("--wandb_run_name", type=str, default=None)
     args = ap.parse_args()
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     log_path = out_dir / "policy_selection_log.jsonl"
+
+    wandb_run = None
+    wandb_module = None
+    if args.wandb:
+        try:
+            import wandb as wandb_module  # type: ignore
+
+            wandb_run = wandb_module.init(
+                name=args.wandb_run_name,
+                config={
+                    "train": args.train,
+                    "dev": args.dev,
+                    "base_model": args.base_model,
+                    "out_dir": str(out_dir),
+                    "calibration": args.calibration,
+                    "guard_spec": args.guard_spec,
+                    "rounds": args.rounds,
+                    "t_values": args.t_values,
+                    "policy_eval_samples": args.policy_eval_samples,
+                    "num_candidates": args.num_candidates,
+                    "seed": args.seed,
+                    "skip_train": args.skip_train,
+                },
+            )
+        except Exception as e:
+            print(f"[wandb] disabled (init failed): {e}")
+            wandb_run = None
+            wandb_module = None
 
     train_rows = list(read_jsonl(args.train))
     rng = random.Random(args.seed)
@@ -142,24 +174,60 @@ def main() -> int:
                     }
                 )
 
-            log_f.write(
-                json.dumps(
-                    {
-                        "round": round_idx,
-                        "step": round_idx,
-                        "sample_ids": sample_ids,
-                        "chosen": {
-                            "t": best_t,
-                            "ops": best_ops,
-                            "loss": best_score,
-                            "guard_pass_rate": best_pass_rate,
-                        },
-                        "candidates": candidates_payload,
-                    }
-                )
-                + "\n"
-            )
+            log_record = {
+                "round": round_idx,
+                "step": round_idx,
+                "sample_ids": sample_ids,
+                "chosen": {
+                    "t": best_t,
+                    "ops": best_ops,
+                    "loss": best_score,
+                    "guard_pass_rate": best_pass_rate,
+                },
+                "candidates": candidates_payload,
+            }
+            log_f.write(json.dumps(log_record) + "\n")
             log_f.flush()
+
+            if wandb_run is not None and wandb_module is not None:
+                try:
+                    wandb_module.log(
+                        {
+                            "round": round_idx,
+                            "chosen/loss": best_score,
+                            "chosen/guard_pass_rate": best_pass_rate,
+                            "chosen/t": best_t,
+                            "chosen/ops": ",".join(best_ops),
+                            "candidates/count": len(candidates_payload),
+                        },
+                        step=round_idx,
+                    )
+                    wandb_module.log(
+                        {
+                            "candidates/table": wandb_module.Table(
+                                columns=[
+                                    "t",
+                                    "ops",
+                                    "loss",
+                                    "guard_pass_rate",
+                                    "accepted",
+                                ],
+                                data=[
+                                    [
+                                        c["t"],
+                                        ",".join(c["ops"]),
+                                        c["loss"],
+                                        c["guard_pass_rate"],
+                                        c["accepted"],
+                                    ]
+                                    for c in candidates_payload
+                                ],
+                            )
+                        },
+                        step=round_idx,
+                    )
+                except Exception as e:
+                    print(f"[wandb] log failed: {e}")
 
             adv_path = out_dir / f"adv_round_{round_idx}.jsonl"
             guard_log_path = out_dir / f"guard_log_round_{round_idx}.jsonl"
@@ -212,6 +280,13 @@ def main() -> int:
                 )
 
     print(f"wrote policy logs to {log_path}")
+
+    if wandb_run is not None:
+        try:
+            wandb_run.finish()
+        except Exception:
+            pass
+
     return 0
 
 
