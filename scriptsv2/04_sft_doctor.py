@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 
 import torch
+import sys
 from datasets import Dataset
 from peft import LoraConfig, get_peft_model
 from transformers import (
@@ -26,6 +27,8 @@ from transformers import (
     TrainingArguments,
 )
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from utils.budget_tracker import BudgetTracker
 
 
