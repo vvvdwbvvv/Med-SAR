@@ -163,7 +163,7 @@ def main() -> int:
 
     model = AutoModelForCausalLM.from_pretrained(
         args.base,
-        attn_implementation="sdpa",
+        attn_implementation="flash_attention_2",
         torch_dtype=torch.float16,
         use_cache=False,
         quantization_config=BitsAndBytesConfig(
@@ -190,7 +190,7 @@ def main() -> int:
 
     targs = TrainingArguments(
         output_dir=args.out,
-        per_device_train_batch_size=4,
+        per_device_train_batch_size=16,
         gradient_accumulation_steps=8,
         learning_rate=2e-5,
         num_train_epochs=1,
