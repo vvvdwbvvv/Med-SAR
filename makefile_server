@@ -127,11 +127,11 @@ v2_selfplay:
 	--train $(V2_M23K_OUT)/m23k_wrapped_train.jsonl \
 	--dev $(V2_M23K_OUT)/m23k_wrapped_val.jsonl \
 	--base_model runs/merged_doctor_sft_v2 \
-	--out_dir $(V2_LOOP_OUT) \
+	--out_dir outputs/loop_train_run2 \
 	--calibration $(V2_CALIB_OUT) \
 	--guard_spec $(V2_GUARD_SPEC) \
 	--wandb \
-    --wandb_run_name loop_train_v2
+    --wandb_run_name loop_train_run2
 
 v2_benchmark:
 	$(PYTHON) scriptsv2/09_controlled_shift_benchmark.py \

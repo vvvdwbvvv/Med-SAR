@@ -8,6 +8,7 @@
 #   --guard_spec outputs/fact_guard_spec.yaml \
 #   --wandb \
 #   --wandb_run_name loop_train_v2
+#   --min_pass_rate 0.2
 
 from __future__ import annotations
 
