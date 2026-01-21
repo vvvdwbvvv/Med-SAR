@@ -126,10 +126,12 @@ v2_selfplay:
 	$(PYTHON) scriptsv2/06_loop_train.py \
 	--train $(V2_M23K_OUT)/m23k_wrapped_train.jsonl \
 	--dev $(V2_M23K_OUT)/m23k_wrapped_val.jsonl \
-	--base_model meta-llama/Llama-3.2-3B-Instruct \
+	--base_model runs/merged_doctor_sft_v2 \
 	--out_dir $(V2_LOOP_OUT) \
 	--calibration $(V2_CALIB_OUT) \
-	--guard_spec $(V2_GUARD_SPEC)
+	--guard_spec $(V2_GUARD_SPEC) \
+	--wandb \
+    --wandb_run_name loop_train_v2
 
 v2_benchmark:
 	$(PYTHON) scriptsv2/09_controlled_shift_benchmark.py \
