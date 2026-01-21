@@ -58,9 +58,10 @@ def _policy_score(
     guard_cfg: GuardConfig,
     calibration,
 ) -> Tuple[float, float]:
-    scores = []
     total = 0
     passed = 0
+    sum_score = 0.0  # sum over ALL samples; failed contributes 0
+
     for i, r in enumerate(sample_rows):
         clean = r.get("x_wrapped") or r.get("x_raw") or ""
         adv = apply_chain(
@@ -74,10 +75,12 @@ def _policy_score(
         total += 1
         if guard.passed:
             passed += 1
-            scores.append(1.0 - guard.metrics.get("entity_jaccard", 1.0))
-    if not scores:
-        return 0.0, passed / max(1, total)
-    return sum(scores) / len(scores), passed / max(1, total)
+            j = float(guard.metrics.get("entity_jaccard", 1.0))
+            sum_score += (1.0 - j)
+
+    pass_rate = passed / max(1, total)
+    score = sum_score / max(1, total)  # avg over total
+    return score, pass_rate
 
 
 def main() -> int:
@@ -90,6 +93,7 @@ def main() -> int:
     ap.add_argument("--guard_spec", type=str, default=None)
     ap.add_argument("--rounds", type=int, default=5)
     ap.add_argument("--t_values", type=float, nargs="+", default=[0.0, 0.3, 0.6, 1.0])
+    ap.add_argument("--min_pass_rate", type=float, default=0.2)
     ap.add_argument("--policy_eval_samples", type=int, default=200)
     ap.add_argument("--num_candidates", type=int, default=6)
     ap.add_argument("--seed", type=int, default=0)
@@ -169,7 +173,7 @@ def main() -> int:
                         "t": t,
                         "ops": ops,
                         "loss": score,
-                        "accepted": pass_rate > 0.0,
+                        "accepted": pass_rate > args.min_pass_rate,
                         "guard_pass_rate": pass_rate,
                     }
                 )
